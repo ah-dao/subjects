@@ -2,20 +2,80 @@
 
 ## 1. 项目概述
 
-本项目实现了一个基于深度学习的滑坡易发性评估模型，采用CNN+CBAM+Transformer的混合架构，对多源遥感因子进行特征提取和空间关联建模，最终输出滑坡风险概率图。
+本项目实现了一个基于深度学习的滑坡易发性评估模型，采用 **CNN + CBAM + Transformer** 的混合架构，对多源遥感因子进行特征提取和空间关联建模。
 
-### 1.1 模型设计理念
+### 1.1 技术栈
 
-模型的核心理念是将多种滑坡影响因子（坡度、坡向、降水、NDVI、岩石类型等18个因子）叠加成多通道特征图，然后通过：
-- **CNN**：提取局部空间特征
-- **CBAM**：强化关键区域的重要性
-- **Transformer**：建模全局空间关联
-- **SPP**：捕获多尺度信息
+| 组件 | 技术选型 |
+|------|----------|
+| 深度学习框架 | PyTorch |
+| 遥感数据源 | Google Earth Engine (GEE) |
+| 数据格式 | GeoTIFF (多波段) |
+| 运行环境 | 本地 / Google Colab / 云服务器 |
 
-## 2. 完整模型架构
+### 1.2 输入数据
+
+目前使用 **5 个滑坡影响因子**（GEE 自动合并为一个多波段影像）：
+
+| 波段 | 因子名称 | 数据来源 |
+|------|----------|----------|
+| Band 1 | elevation (高程) | USGS/SRTMGL1_003 |
+| Band 2 | slope (坡度) | ee.Terrain.slope() |
+| Band 3 | aspect (坡向) | ee.Terrain.aspect() |
+| Band 4 | TRI (地形粗糙度指数) | ee.Algorithms.Terrain() |
+| Band 5 | curvature (曲率) | ee.Algorithms.Terrain() |
+
+---
+
+## 2. 目录结构
 
 ```
-输入: (batch, 18, 1664, 2327)
+subjects/
+├── src/                          # 核心源代码
+│   ├── __init__.py
+│   ├── model.py                  # 模型架构 (CNN+CBAM+Transformer)
+│   ├── cbam.py                   # CBAM 注意力模块
+│   ├── transformer.py            # Transformer 编码器 + 地理位置编码
+│   ├── spp.py                    # SPP 空间金字塔池化
+│   ├── dataloader.py             # 数据加载器
+│   ├── config.py                 # 正式训练配置 (18通道, 大尺寸)
+│   ├── debug_config.py           # 调试配置 (5通道, 小尺寸)
+│   ├── train.py                  # 正式训练脚本
+│   ├── test.py                   # 测试脚本
+│   └── generate_sample_data.py  # 生成示例数据
+│
+├── main.py                       # 正式环境入口
+├── debug_train.py                # 调试环境入口
+├── load_geotiff.py               # 多波段 GeoTIFF 加载器
+├── gee_export.js                 # GEE 导出脚本
+├── convert_tfrecord.py           # TFRecord 格式转换
+├── convert_geotiff.py            # GeoTIFF 格式转换
+├── prepare_data.py               # 数据预处理
+├── requirements.txt              # Python 依赖
+│
+├── debug_data/                   # 调试数据 (gitignore)
+│   ├── train/
+│   └── val/
+│
+├── data/                         # 正式训练数据 (gitignore)
+│   ├── train/
+│   ├── val/
+│   └── test/
+│
+├── debug_models/                 # 调试模型保存 (gitignore)
+├── models/                       # 正式模型保存 (gitignore)
+├── debug_logs/                   # 调试日志 (gitignore)
+└── logs/                         # 正式日志 (gitignore)
+```
+
+---
+
+## 3. 模型架构详解
+
+### 3.1 整体结构
+
+```
+输入: (batch, 5, 256, 256)  ← 5个因子通道
     ↓
 ┌─────────────────────────────────────────────┐
 │           CNN Block 1 (16通道)               │
@@ -24,7 +84,7 @@
     ↓
 ┌─────────────────────────────────────────────┐
 │           CBAM 注意力模块 1                  │
-│  通道注意力 (16→1) + 空间注意力 (7x7)        │
+│  通道注意力 + 空间注意力                     │
 └─────────────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────────────┐
@@ -44,21 +104,21 @@
     ↓
 ┌─────────────────────────────────────────────┐
 │         地理位置编码 (Geo Encoding)          │
-│  将(y,x)坐标编码为可学习的空间嵌入           │
+│  可学习的空间位置嵌入                        │
 └─────────────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────────────┐
-│      Transformer 编码器 (4头, 3层)           │
-│  自注意力机制建模全局空间依赖关系             │
+│      Transformer 编码器 (2头, 2层)           │
+│  自注意力建模全局依赖                        │
 └─────────────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────────────┐
-│           CNN Block 4 (64通道)               │
+│           CNN Block 4 (32通道)               │
 │  Conv2d → BatchNorm → ReLU (无池化)          │
 └─────────────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────────────┐
-│     SPP 空间金字塔池化 (1x1, 2x2, 3x3)       │
+│        SPP 空间金字塔池化 (1x1, 2x2)        │
 │  多尺度特征聚合                             │
 └─────────────────────────────────────────────┘
     ↓
@@ -71,290 +131,297 @@
 输出: (batch, 2) [滑坡概率, 非滑坡概率]
 ```
 
-## 3. 关键模块详解
+### 3.2 关键模块
 
-### 3.1 CNN特征提取器
+#### CNN 特征提取器
+- 提取局部空间特征
+- 逐层增加通道数 (16 → 16 → 32 → 32)
+- MaxPool 降低分辨率，增大感受野
 
-```python
-class CNNBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, padding=1, pooling=True):
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding)
-        self.bn = nn.BatchNorm2d(out_channels)
-        self.relu = nn.ReLU(inplace=True)
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2) if pooling else None
-```
+#### CBAM 注意力机制
+- **通道注意力**：学习哪些因子更重要
+- **空间注意力**：学习哪些位置更重要
+- 两阶段注意力串行连接
 
-**作用**：
-- `Conv2d`：卷积核在输入特征图上滑动，提取局部空间模式
-- `BatchNorm`：标准化激活值，加速训练收敛
-- `ReLU`：引入非线性，使网络能学习复杂模式
-- `MaxPool`：降低空间分辨率，减少计算量，增大感受野
+#### 地理位置编码
+- 将 (y, x) 坐标投影为可学习嵌入
+- 解决 CNN 缺乏绝对位置感知的问题
 
-**在本模型中的角色**：两个连续的CNN+CBAM组合负责逐层提取越来越抽象的特征。
+#### Transformer 编码器
+- 多头自注意力建模全局依赖
+- 捕捉远距离因子的关联
 
-### 3.2 CBAM注意力机制
+#### SPP 空间金字塔池化
+- 多尺度特征聚合 (1×1, 2×2)
+- 捕获从全局到局部的特征
 
-CBAM是Convolutional Block Attention Module的缩写，包含两个串联的注意力子模块：
-
-#### 3.2.1 通道注意力 (Channel Attention)
-
-```
-输入特征图 (H, W, C)
-    ↓
-┌──────────────────────────────────────┐
-│  全局平均池化 → (1, 1, C)             │
-│  全局最大池化 → (1, 1, C)             │
-└──────────────────────────────────────┘
-    ↓
-┌──────────────────────────────────────┐
-│  共享MLP: (C → C/r → C)               │
-│  其中 r=16 (降维比)                   │
-└──────────────────────────────────────┘
-    ↓
-  两条路径相加 → Sigmoid → 权重图 (1, 1, C)
-    ↓
-输入特征图 × 权重图
-```
-
-**核心思想**：让网络学习"哪些因子通道更重要"
-
-#### 3.2.2 空间注意力 (Spatial Attention)
-
-```
-CBAM通道注意力输出
-    ↓
-┌──────────────────────────────────────┐
-│  通道维度平均 → (H, W, 1)            │
-│  通道维度最大 → (H, W, 1)            │
-│  拼接 → (H, W, 2)                   │
-└──────────────────────────────────────┘
-    ↓
-┌──────────────────────────────────────┐
-│  7x7卷积 → (H, W, 1)                 │
-│  Sigmoid → 空间权重图                │
-└──────────────────────────────────────┘
-    ↓
-特征图 × 空间权重图
-```
-
-**核心思想**：让网络学习"哪些空间位置更重要"
-
-**在本模型中的角色**：
-- 在CNN Block 1和2之后插入CBAM
-- 帮助模型聚焦于滑坡敏感区域（如陡峭坡面、断裂带等）
-- 抑制无关背景信息
-
-### 3.3 地理位置编码 (GeoPositional Encoding)
-
-```python
-class GeoPositionalEncoding(nn.Module):
-    def __init__(self, d_model, height, width):
-        # 创建空间坐标网格
-        y_pos = torch.linspace(-1, 1, height)  # 垂直坐标 [-1, 1]
-        x_pos = torch.linspace(-1, 1, width)   # 水平坐标 [-1, 1]
-        
-        # 可学习的线性投影
-        self.y_embed = nn.Linear(1, d_model // 2)
-        self.x_embed = nn.Linear(1, d_model // 2)
-    
-    def forward(self, x):
-        # 将坐标投影到d_model维度
-        y_emb = self.y_embed(y_pos)  # (H, d_model/2)
-        x_emb = self.x_embed(x_pos)  # (W, d_model/2)
-        return x + y_emb + x_emb
-```
-
-**解决的问题**：CNN和标准注意力机制缺乏绝对空间位置感知
-
-**在滑坡模型中的意义**：
-- 滑坡发生与地理位置强相关（特定地质条件区域）
-- 帮助Transformer理解"哪里更可能发生滑坡"
-- 编码后的位置信息会参与后续的注意力计算
-
-### 3.4 Transformer编码器
-
-```python
-class TransformerEncoder(nn.Module):
-    def __init__(self, d_model=64, nhead=4, num_layers=3):
-        encoder_layer = nn.TransformerEncoderLayer(
-            d_model=d_model,    # 特征维度
-            nhead=nhead,        # 注意力头数
-            dim_feedforward=256 # 前馈网络维度
-        )
-        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
-```
-
-**自注意力机制的工作原理**：
-
-```
-输入序列: [位置1特征, 位置2特征, ..., 位置n特征]
-    ↓
-┌─────────────────────────────────────────────┐
-│           多头自注意力层                     │
-│  Query, Key, Value都来自输入自身             │
-│  每个头关注不同的特征关联模式                 │
-└─────────────────────────────────────────────┘
-    ↓
-注意力权重矩阵: 位置i对所有位置j的关联强度
-    ↓
-加权求和 → 更新后的位置i特征
-```
-
-**4个注意力头分别捕捉**：
-1. 头1：可能关注坡度-降水组合
-2. 头2：可能关注NDVI-岩石类型组合
-3. 头3：可能关注坡向-断裂带距离组合
-4. 头4：可能关注全局地形趋势
-
-**在滑坡模型中的意义**：
-- 建模远距离空间依赖（如山顶降水→山脚滑坡）
-- 捕捉多因子间的非线性交互
-- 3层堆叠实现深层特征抽象
-
-### 3.5 SPP空间金字塔池化
-
-```python
-class SPPModule(nn.Module):
-    def forward(self, x):
-        pooled_features = []
-        for level in [1, 2, 3]:  # 1x1, 2x2, 3x3
-            kernel_size = (H // level, W // level)
-            pooled = F.max_pool2d(x, kernel_size=kernel_size)
-            pooled = pooled.view(batch_size, channels, -1)
-            pooled_features.append(pooled)
-        return torch.cat(pooled_features, dim=2)
-```
-
-**多尺度特征聚合**：
-
-```
-输入特征图 (64, H, W)
-    ↓
-┌─────────────────────────────────────────────┐
-│  Level 1: 全局平均 (1x1池化)                │
-│  → 捕获整体趋势                             │
-└─────────────────────────────────────────────┘
-    ↓
-┌─────────────────────────────────────────────┐
-│  Level 2: 4个区域 (2x2池化)                 │
-│  → 捕获局部区块特征                         │
-└─────────────────────────────────────────────┘
-    ↓
-┌─────────────────────────────────────────────┐
-│  Level 3: 9个区域 (3x3池化)                 │
-│  → 捕获细粒度局部特征                       │
-└─────────────────────────────────────────────┘
-    ↓
-展平拼接 → 64 × (1 + 4 + 9) = 64 × 14 = 896维
-```
-
-**在滑坡模型中的意义**：
-- 滑坡风险在空间上有不同尺度
-- 整体趋势（区域级别）
-- 中等范围（坡面级别）
-- 局部细节（单点级别）
+---
 
 ## 4. 数据流与维度变化
 
 | 层级 | 操作 | 输入尺寸 | 输出尺寸 |
 |------|------|----------|----------|
-| 1 | CNN Block 1 + CBAM1 | (B, 18, 1664, 2327) | (B, 16, 832, 1163) |
-| 2 | CNN Block 2 + CBAM2 | (B, 16, 832, 1163) | (B, 16, 416, 581) |
-| 3 | CNN Block 3 | (B, 16, 416, 581) | (B, 32, 416, 581) |
-| 4 | Geo Encoding | (B, 32, 416, 581) | (B, 32, 416, 581) |
-| 5 | Transformer (4头×3层) | (B, 32, 416, 581) | (B, 32, 416, 581) |
-| 6 | CNN Block 4 | (B, 32, 416, 581) | (B, 64, 416, 581) |
-| 7 | SPP (1+4+9池化) | (B, 64, 416, 581) | (B, 64, 14) |
-| 8 | Flatten | (B, 64, 14) | (B, 896) |
-| 9 | FC1 → ReLU | (B, 896) | (B, 320) |
+| 1 | CNN Block 1 + CBAM1 | (B, 5, 256, 256) | (B, 16, 128, 128) |
+| 2 | CNN Block 2 + CBAM2 | (B, 16, 128, 128) | (B, 16, 64, 64) |
+| 3 | CNN Block 3 | (B, 16, 64, 64) | (B, 32, 64, 64) |
+| 4 | Geo Encoding | (B, 32, 64, 64) | (B, 32, 64, 64) |
+| 5 | Transformer | (B, 32, 64, 64) | (B, 32, 64, 64) |
+| 6 | CNN Block 4 | (B, 32, 64, 64) | (B, 32, 64, 64) |
+| 7 | SPP (1+4池化) | (B, 32, 64, 64) | (B, 32, 5) |
+| 8 | Flatten | (B, 32, 5) | (B, 160) |
+| 9 | FC1 → ReLU | (B, 160) | (B, 320) |
 | 10 | FC2 → ReLU | (B, 320) | (B, 128) |
 | 11 | FC3 → Softmax | (B, 128) | (B, 2) |
 
-## 5. 训练流程
+---
+
+## 5. 模型启动训练方法
+
+### 5.1 方式一：调试模式（推荐新手）
+
+使用较小的配置快速验证代码逻辑。
+
+```bash
+# 1. 进入项目目录
+cd c:\Users\dollars\code\subjects
+
+# 2. 生成调试数据 + 训练 + 测试 (一键完成)
+python debug_train.py --mode full
+
+# 或分步执行
+python debug_train.py --mode generate  # 生成模拟数据
+python debug_train.py --mode train     # 训练模型
+python debug_train.py --mode test      # 测试模型
+```
+
+**调试模式配置** (`src/debug_config.py`):
+- 输入通道：5
+- 输入尺寸：256 × 256
+- Transformer：2层, 2头
+- 训练轮数：3 epochs
+- 批次大小：4
+
+### 5.2 方式二：正式训练模式
+
+使用完整配置进行正式训练。
+
+```bash
+# 1. 生成示例数据
+python main.py --mode generate
+
+# 2. 训练模型
+python main.py --mode train
+
+# 3. 测试模型
+python main.py --mode test
+```
+
+**正式配置** (`src/config.py`):
+- 输入通道：18
+- 输入尺寸：1664 × 2327
+- Transformer：3层, 4头
+- 训练轮数：50 epochs
+- 批次大小：8
+
+### 5.3 方式三：使用 Google Colab
 
 ```python
-def train_model(config):
-    model = LandslideModel(config).to(device)
-    criterion = nn.CrossEntropyLoss()  # 交叉熵损失
-    optimizer = optim.Adam(model.parameters(), lr=1e-4)
-    
-    for epoch in range(50):
-        # 前向传播
-        outputs = model(features)  # (batch, 2)
-        loss = criterion(outputs, labels)  # 标签: 0或1
-        
-        # 反向传播
-        loss.backward()
-        optimizer.step()
-        
-        # 验证 & 保存最优模型
-        if val_acc > best_val_acc:
-            torch.save(model.state_dict(), 'best_model.pth')
+# 在 Colab 中运行
+!git clone https://github.com/YOUR_USERNAME/landslide-model.git
+%cd landslide-model
+!pip install -r requirements.txt
+
+# 上传 GeoTIFF 数据
+from google.colab import files
+uploaded = files.upload()
+
+# 转换为训练数据
+!python load_geotiff.py --input landslide_factors_multiband.tif --output data/train
+
+# 训练
+!python debug_train.py --mode train
 ```
 
-## 6. 关键设计决策解释
+---
 
-### 6.1 为什么使用CBAM而不是SE-Net？
+## 6. GEE 数据导出工作流
 
-| 注意力机制 | 机制 | 适用场景 |
-|-----------|------|----------|
-| SE-Net | 仅通道注意力 | 分类任务 |
-| CBAM | 通道+空间注意力 | 需要空间定位的任务 ✓ |
+### 6.1 在 GEE 中导出数据
 
-滑坡易发性需要**定位**高风险区域，因此选择CBAM。
+1. 打开 [Google Earth Engine Code Editor](https://code.earthengine.google.com)
+2. 新建脚本，粘贴 `gee_export.js` 内容
+3. 修改 `studyRegion` 为你的研究区
+4. 在 Task 面板点击 RUN
+5. 等待导出完成，文件保存到 Google Drive
 
-### 6.2 为什么需要地理位置编码？
+### 6.2 下载并转换数据
 
-CNN的卷积操作具有平移不变性，缺乏绝对位置感知：
-- 知道"这里很陡"但不知道"这里在哪里"
-- 地理位置编码让模型学习"特定区域（如地震带）的滑坡规律"
+```bash
+# 从 Google Drive 下载 GeoTIFF 文件
 
-### 6.3 为什么Transformer放在中间层而不是最后？
+# 转换为训练数据 (生成切片)
+python load_geotiff.py \
+    --input landslide_factors_multiband.tif \
+    --output data/train \
+    --stride 128 \
+    --balance
 
+# 或逐参数执行
+python load_geotiff.py --input your_file.tif --output ./data/train
 ```
-位置太前 → 特征太浅，缺乏语义信息
-位置太后 → 计算量大，且缺乏局部细节
 
-最佳实践：放在中间层
-→ CNN提取局部特征
-→ Transformer建模全局关联
-→ 两者结合，兼顾局部和全局
+### 6.3 数据格式说明
+
+**输入 GeoTIFF**:
+```
+Shape: (5, H, W)  ← 5个波段
+Bands: [elevation, slope, aspect, TRI, curvature]
 ```
 
-## 7. 模型使用示例
+**输出训练数据**:
+```
+data/train/
+├── sample_00000_features.npy  # (5, 256, 256)
+├── sample_00000_label.npy      # (1,) 值为 0 或 1
+├── sample_00001_features.npy
+├── sample_00001_label.npy
+└── ...
+```
+
+---
+
+## 7. 配置对比
+
+| 配置项 | 调试模式 | 正式模式 |
+|--------|----------|----------|
+| 文件 | `src/debug_config.py` | `src/config.py` |
+| 输入通道 | 5 | 18 |
+| 图像尺寸 | 256 × 256 | 1664 × 2327 |
+| CNN 输出通道 | 16 | 16 |
+| CBAM 降维比 | 4 | 16 |
+| Transformer 维度 | 32 | 64 |
+| Transformer 头数 | 2 | 4 |
+| Transformer 层数 | 2 | 3 |
+| SPP 层级 | [1, 2] | [1, 2, 3] |
+| 训练轮数 | 3 | 50 |
+| 批次大小 | 4 | 8 |
+| 学习率 | 1e-3 | 1e-4 |
+| 入口脚本 | `debug_train.py` | `main.py` |
+
+---
+
+## 8. 关键代码说明
+
+### 8.1 模型定义
 
 ```python
-from src import Config, LandslideModel
+from src.debug_config import DebugConfig
+from src.model import LandslideModel
 import torch
 
-config = Config()
+config = DebugConfig()
 model = LandslideModel(config)
 
-# 输入: 18个因子叠加的特征图
-input_tensor = torch.randn(1, 18, 1664, 2327)
+# 输入: 5个因子的特征图
+input_tensor = torch.randn(1, 5, 256, 256)
 
 # 前向传播
 with torch.no_grad():
     output = model(input_tensor)
-    
+
+# 输出: [滑坡概率, 非滑坡概率]
 print(f"滑坡概率: {output[0, 1].item():.4f}")
 print(f"非滑坡概率: {output[0, 0].item():.4f}")
 ```
 
-## 8. 性能优化建议
+### 8.2 自定义数据加载
 
-1. **GPU加速**：确保CUDA可用，模型会自动使用GPU
-2. **混合精度训练**：使用`torch.cuda.amp`加速训练
-3. **数据预加载**：使用多个worker并行加载数据
-4. **梯度累积**：当显存受限时，可累积多个小batch的梯度
+```python
+from src.dataloader import LandslideDataset, get_dataloader
 
-## 9. 总结
+dataset = LandslideDataset('data/train')
+dataloader = get_dataloader('data/train', batch_size=4, shuffle=True)
 
-这个模型的核心优势在于：
+for features, labels in dataloader:
+    print(features.shape)  # (4, 5, 256, 256)
+    print(labels.shape)    # (4,)
+```
 
-1. **多尺度特征提取**：CNN+SPP捕获从局部到全局的特征
-2. **注意力引导**：CBAM自动聚焦滑坡敏感区域
-3. **全局关联建模**：Transformer捕捉远距离因子的依赖关系
+### 8.3 GEE 多波段加载
+
+```python
+from load_geotiff import MultiBandGeoTIFFLoader
+
+loader = MultiBandGeoTIFFLoader('landslide_factors.tif')
+loader.load()
+features, labels = loader.extract_center_labels(stride=128)
+```
+
+---
+
+## 9. 依赖安装
+
+```bash
+# 安装 Python 依赖
+pip install -r requirements.txt
+
+# 核心依赖
+torch>=2.0.0
+numpy>=1.21.0
+rasterio>=1.3.0  # 推荐，用于加载 GeoTIFF
+GDAL>=3.5.0     # 可选，rasterio 的后端
+tqdm>=4.65.0
+```
+
+---
+
+## 10. 常见问题
+
+### Q1: 显存不足怎么办？
+```python
+# 降低批次大小
+config.TRAIN_BATCH_SIZE = 2  # 或 1
+
+# 或使用调试模式
+python debug_train.py --mode train
+```
+
+### Q2: 如何增加更多滑坡因子？
+1. 在 `gee_export.js` 中添加新波段
+2. 修改 `debug_config.py` 的 `INPUT_CHANNELS` 和 `FACTOR_NAMES`
+3. 重新导出和转换数据
+
+### Q3: 如何可视化模型注意力？
+```python
+# 获取 CBAM 注意力权重
+cbam_weights = model.cbam1.channel_attention(features)
+```
+
+### Q4: 训练中断后如何继续？
+```python
+# 加载已有模型继续训练
+model.load_state_dict(torch.load('debug_models/debug_best_model.pth'))
+```
+
+---
+
+## 11. 项目总结
+
+本模型的核心优势：
+
+1. **多尺度特征提取**：CNN + SPP 捕获从局部到全局的特征
+2. **注意力引导**：CBAM 自动聚焦滑坡敏感区域
+3. **全局关联建模**：Transformer 捕捉远距离因子的依赖
 4. **空间感知**：地理位置编码提供绝对位置信息
 
-这三个模块的组合使模型能够同时理解"是什么样的地形"（CNN+CBAM）和"在哪里"（GeoEncoding+Transformer），从而做出更准确的滑坡易发性评估。
+整个工作流程：
+
+```
+GEE 导出多波段 GeoTIFF
+        ↓
+load_geotiff.py 提取训练切片
+        ↓
+debug_train.py / main.py 训练模型
+        ↓
+输出滑坡易发性概率图
+```

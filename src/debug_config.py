@@ -3,9 +3,11 @@ import torch
 class DebugConfig:
     DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    INPUT_CHANNELS = 6
+    INPUT_CHANNELS = 5
     INPUT_HEIGHT = 256
     INPUT_WIDTH = 256
+    
+    FACTOR_NAMES = ['elevation', 'slope', 'aspect', 'TRI', 'curvature']
     
     CNN_OUT_CHANNELS = 16
     CBAM_REDUCTION = 4
