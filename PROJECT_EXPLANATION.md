@@ -2,7 +2,7 @@
 
 ## 1. 项目概述
 
-本项目实现了一个基于深度学习的滑坡易发性评估模型，采用 **CNN + CBAM + Transformer** 的混合架构，对多源遥感因子进行特征提取和空间关联建模。
+本项目实现了一个基于深度学习的滑坡易发性评估模型，采用 **CNN + CBAM + Transformer** 的混合架构。模型将多个滑坡影响因子叠加为多通道图像，输出 **5 级易发性分类**（高、较高、中、较低、低），并生成易发性分布图。
 
 ### 1.1 技术栈
 
@@ -11,6 +11,7 @@
 | 深度学习框架 | PyTorch |
 | 遥感数据源 | Google Earth Engine (GEE) |
 | 数据格式 | GeoTIFF (多波段) |
+| 可视化 | Matplotlib |
 | 运行环境 | 本地 / Google Colab / 云服务器 |
 
 ### 1.2 输入数据
@@ -27,45 +28,42 @@
 
 ---
 
-## 2. 目录结构
+## 2. 目录结构与文件说明
 
 ```
 subjects/
-├── src/                          # 核心源代码
-│   ├── __init__.py
-│   ├── model.py                  # 模型架构 (CNN+CBAM+Transformer)
-│   ├── cbam.py                   # CBAM 注意力模块
-│   ├── transformer.py            # Transformer 编码器 + 地理位置编码
-│   ├── spp.py                    # SPP 空间金字塔池化
-│   ├── dataloader.py             # 数据加载器
-│   ├── config.py                 # 正式训练配置 (18通道, 大尺寸)
-│   ├── debug_config.py           # 调试配置 (5通道, 小尺寸)
-│   ├── train.py                  # 正式训练脚本
-│   ├── test.py                   # 测试脚本
-│   └── generate_sample_data.py  # 生成示例数据
+├── src/                              # 核心源代码
+│   ├── __init__.py                   # 包初始化
+│   ├── model.py                      # 分类模型 (输出 2 类/5 类)
+│   ├── model_segmentation.py         # 概率模型 (输出像素概率)
+│   ├── cbam.py                       # CBAM 注意力模块
+│   ├── transformer.py                # Transformer 编码器 + 地理位置编码
+│   ├── spp.py                        # SPP 空间金字塔池化
+│   ├── dataloader.py                 # 数据加载器
+│   ├── visualization.py              # 易发性可视化工具
+│   ├── config.py                     # 正式训练配置 (18通道)
+│   └── debug_config.py               # 调试配置 (5通道)
 │
-├── main.py                       # 正式环境入口
-├── debug_train.py                # 调试环境入口
-├── load_geotiff.py               # 多波段 GeoTIFF 加载器
-├── gee_export.js                 # GEE 导出脚本
-├── convert_tfrecord.py           # TFRecord 格式转换
-├── convert_geotiff.py            # GeoTIFF 格式转换
-├── prepare_data.py               # 数据预处理
-├── requirements.txt              # Python 依赖
+├── main.py                           # 正式训练入口
+├── debug_train.py                     # 调试训练入口
+├── predict.py                         # 生成易发性分布图
+├── load_geotiff.py                   # 多波段 GeoTIFF 加载与切片提取
+├── gee_export.js                     # GEE 导出脚本
+├── prepare_data.py                   # 数据预处理
+├── requirements.txt                  # Python 依赖
 │
-├── debug_data/                   # 调试数据 (gitignore)
+├── debug_data/                       # 调试训练数据
 │   ├── train/
 │   └── val/
 │
-├── data/                         # 正式训练数据 (gitignore)
+├── data/                             # 正式训练数据
 │   ├── train/
 │   ├── val/
 │   └── test/
 │
-├── debug_models/                 # 调试模型保存 (gitignore)
-├── models/                       # 正式模型保存 (gitignore)
-├── debug_logs/                   # 调试日志 (gitignore)
-└── logs/                         # 正式日志 (gitignore)
+├── debug_models/                     # 调试模型保存
+├── models/                           # 正式模型保存
+└── predictions/                      # 预测结果输出
 ```
 
 ---
@@ -75,11 +73,11 @@ subjects/
 ### 3.1 整体结构
 
 ```
-输入: (batch, 5, 256, 256)  ← 5个因子通道
+输入: (batch, 5, 256, 256)  ← 5个滑坡影响因子
     ↓
 ┌─────────────────────────────────────────────┐
 │           CNN Block 1 (16通道)               │
-│  Conv2d → BatchNorm → ReLU → MaxPool(2x2)   │
+│  Conv2d → BatchNorm → ReLU → MaxPool(2x2)  │
 └─────────────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────────────┐
@@ -89,7 +87,7 @@ subjects/
     ↓
 ┌─────────────────────────────────────────────┐
 │           CNN Block 2 (16通道)               │
-│  Conv2d → BatchNorm → ReLU → MaxPool(2x2)   │
+│  Conv2d → BatchNorm → ReLU → MaxPool(2x2)  │
 └─────────────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────────────┐
@@ -99,22 +97,22 @@ subjects/
     ↓
 ┌─────────────────────────────────────────────┐
 │           CNN Block 3 (32通道)               │
-│  Conv2d → BatchNorm → ReLU (无池化)          │
+│  Conv2d → BatchNorm → ReLU                  │
 └─────────────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────────────┐
 │         地理位置编码 (Geo Encoding)          │
-│  可学习的空间位置嵌入                        │
+│  可学习的 (y, x) 空间位置嵌入                │
 └─────────────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────────────┐
 │      Transformer 编码器 (2头, 2层)           │
-│  自注意力建模全局依赖                        │
+│  多头自注意力建模全局依赖                    │
 └─────────────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────────────┐
 │           CNN Block 4 (32通道)               │
-│  Conv2d → BatchNorm → ReLU (无池化)          │
+│  Conv2d → BatchNorm → ReLU                  │
 └─────────────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────────────┐
@@ -131,281 +129,384 @@ subjects/
 输出: (batch, 2) [滑坡概率, 非滑坡概率]
 ```
 
-### 3.2 关键模块
+### 3.2 关键模块说明
 
-#### CNN 特征提取器
-- 提取局部空间特征
-- 逐层增加通道数 (16 → 16 → 32 → 32)
-- MaxPool 降低分辨率，增大感受野
+| 模块 | 文件 | 功能 |
+|------|------|------|
+| CNNBlock | [model.py](file:///c:/Users/dollars/code/subjects/src/model.py#L7-L21) | 局部空间特征提取，逐层增加通道数 |
+| CBAM | [cbam.py](file:///c:/Users/dollars/code/subjects/src/cbam.py) | 通道 + 空间双重注意力 |
+| GeoEncoding | [transformer.py](file:///c:/Users/dollars/code/subjects/src/transformer.py#L1-L50) | 可学习地理位置编码 |
+| Transformer | [transformer.py](file:///c:/Users/dollars/code/subjects/src/transformer.py#L52-L80) | 全局空间依赖建模 |
+| SPP | [spp.py](file:///c:/Users/dollars/code/subjects/src/spp.py) | 多尺度特征聚合 |
 
-#### CBAM 注意力机制
-- **通道注意力**：学习哪些因子更重要
-- **空间注意力**：学习哪些位置更重要
-- 两阶段注意力串行连接
+### 3.3 模型类型
 
-#### 地理位置编码
-- 将 (y, x) 坐标投影为可学习嵌入
-- 解决 CNN 缺乏绝对位置感知的问题
+项目提供两种模型：
 
-#### Transformer 编码器
-- 多头自注意力建模全局依赖
-- 捕捉远距离因子的关联
-
-#### SPP 空间金字塔池化
-- 多尺度特征聚合 (1×1, 2×2)
-- 捕获从全局到局部的特征
+| 模型 | 输出 | 用途 | 训练命令 |
+|------|------|------|----------|
+| **LandslideModel** | 2 类概率 | 训练/验证 | `--model_type classification` |
+| **LandslideProbabilityModel** | 像素级概率 | 生成易发性图 | `--model_type probability` |
 
 ---
 
-## 4. 数据流与维度变化
+## 4. 如何准备自己的训练数据
 
-| 层级 | 操作 | 输入尺寸 | 输出尺寸 |
-|------|------|----------|----------|
-| 1 | CNN Block 1 + CBAM1 | (B, 5, 256, 256) | (B, 16, 128, 128) |
-| 2 | CNN Block 2 + CBAM2 | (B, 16, 128, 128) | (B, 16, 64, 64) |
-| 3 | CNN Block 3 | (B, 16, 64, 64) | (B, 32, 64, 64) |
-| 4 | Geo Encoding | (B, 32, 64, 64) | (B, 32, 64, 64) |
-| 5 | Transformer | (B, 32, 64, 64) | (B, 32, 64, 64) |
-| 6 | CNN Block 4 | (B, 32, 64, 64) | (B, 32, 64, 64) |
-| 7 | SPP (1+4池化) | (B, 32, 64, 64) | (B, 32, 5) |
-| 8 | Flatten | (B, 32, 5) | (B, 160) |
-| 9 | FC1 → ReLU | (B, 160) | (B, 320) |
-| 10 | FC2 → ReLU | (B, 320) | (B, 128) |
-| 11 | FC3 → Softmax | (B, 128) | (B, 2) |
+### 4.1 数据准备流程
 
----
-
-## 5. 模型启动训练方法
-
-### 5.1 方式一：调试模式（推荐新手）
-
-使用较小的配置快速验证代码逻辑。
-
-```bash
-# 1. 进入项目目录
-cd c:\Users\dollars\code\subjects
-
-# 2. 生成调试数据 + 训练 + 测试 (一键完成)
-python debug_train.py --mode full
-
-# 或分步执行
-python debug_train.py --mode generate  # 生成模拟数据
-python debug_train.py --mode train     # 训练模型
-python debug_train.py --mode test      # 测试模型
+```
+Step 1: 在 GEE 中计算滑坡影响因子
+        ↓
+Step 2: 准备滑坡点/非滑坡点数据
+        ↓
+Step 3: 将滑坡标签生成为栅格图层
+        ↓
+Step 4: 合并因子 + 标签导出为 GeoTIFF
+        ↓
+Step 5: 下载并转换为训练数据
 ```
 
-**调试模式配置** (`src/debug_config.py`):
-- 输入通道：5
-- 输入尺寸：256 × 256
-- Transformer：2层, 2头
-- 训练轮数：3 epochs
-- 批次大小：4
+### 4.2 GEE 数据导出
 
-### 5.2 方式二：正式训练模式
+在 [Google Earth Engine Code Editor](https://code.earthengine.google.com) 中使用 `gee_export.js`：
 
-使用完整配置进行正式训练。
+```javascript
+// 1. 计算滑坡影响因子
+var dem = ee.Image('USGS/SRTMGL1_003');
+var factors = dem.rename('elevation')
+  .addBands(ee.Terrain.slope(dem).rename('slope'))
+  .addBands(ee.Terrain.aspect(dem).rename('aspect'));
 
-```bash
-# 1. 生成示例数据
-python main.py --mode generate
+// 2. 添加滑坡标签（重点）
+// 方法 A: 如果你有滑坡点矢量数据
+var landslidePoints = ee.FeatureCollection('YOUR_LANDSLIDE_POINTS');
+var labels = landslidePoints.reduceToImage(['class'], ee.Reducer.first());
+factors = factors.addBands(labels.rename('label'));
 
-# 2. 训练模型
-python main.py --mode train
-
-# 3. 测试模型
-python main.py --mode test
+// 方法 B: 如果你需要创建非滑坡样本
+// 在无滑坡区域随机采样，标记为 0
 ```
 
-**正式配置** (`src/config.py`):
-- 输入通道：18
-- 输入尺寸：1664 × 2327
-- Transformer：3层, 4头
-- 训练轮数：50 epochs
-- 批次大小：8
+### 4.3 GeoTIFF 数据结构
 
-### 5.3 方式三：使用 Google Colab
+导出的 GeoTIFF 应包含：
 
-```python
-# 在 Colab 中运行
-!git clone https://github.com/YOUR_USERNAME/landslide-model.git
-%cd landslide-model
-!pip install -r requirements.txt
-
-# 上传 GeoTIFF 数据
-from google.colab import files
-uploaded = files.upload()
-
-# 转换为训练数据
-!python load_geotiff.py --input landslide_factors_multiband.tif --output data/train
-
-# 训练
-!python debug_train.py --mode train
+```
+Shape: (channels+1, H, W)
+  - Band 1-5: 滑坡影响因子 (elevation, slope, aspect, TRI, curvature)
+  - Band 6: 标签层 (0=非滑坡, 1=滑坡)
 ```
 
----
-
-## 6. GEE 数据导出工作流
-
-### 6.1 在 GEE 中导出数据
-
-1. 打开 [Google Earth Engine Code Editor](https://code.earthengine.google.com)
-2. 新建脚本，粘贴 `gee_export.js` 内容
-3. 修改 `studyRegion` 为你的研究区
-4. 在 Task 面板点击 RUN
-5. 等待导出完成，文件保存到 Google Drive
-
-### 6.2 下载并转换数据
+### 4.4 转换为训练数据
 
 ```bash
-# 从 Google Drive 下载 GeoTIFF 文件
-
-# 转换为训练数据 (生成切片)
+# 基本用法 - 转换为训练切片
 python load_geotiff.py \
-    --input landslide_factors_multiband.tif \
+    --input landslide_factors_with_labels.tif \
     --output data/train \
+    --stride 128
+
+# 创建平衡数据集（推荐）
+python load_geotiff.py \
+    --input landslide_factors_with_labels.tif \
+    --output data/balanced \
     --stride 128 \
     --balance
-
-# 或逐参数执行
-python load_geotiff.py --input your_file.tif --output ./data/train
 ```
 
-### 6.3 数据格式说明
+### 4.5 滑坡标签生成代码
 
-**输入 GeoTIFF**:
-```
-Shape: (5, H, W)  ← 5个波段
-Bands: [elevation, slope, aspect, TRI, curvature]
+如果你的滑坡点是矢量格式，需要先转为栅格标签：
+
+```javascript
+// 在 GEE 中将滑坡点转为栅格标签
+function createLabelRaster(points, region) {
+  // 将滑坡点转为 256m 分辨率的栅格
+  var landslide = points.filter(ee.Filter.eq('class', 1));
+  var nonLandlide = points.filter(ee.Filter.eq('class', 0));
+  
+  var labels = ee.ImageCollection([
+    landslide.reduceToImage(['1'], ee.Reducer.first()).rename('label'),
+    nonLandlide.reduceToImage(['0'], ee.Reducer.first()).rename('label')
+  ]).mosaic();
+  
+  return labels;
+}
 ```
 
-**输出训练数据**:
+---
+
+## 5. 模型训练方法
+
+### 5.1 调试模式（推荐新手）
+
+```bash
+# 生成模拟数据并一键训练
+python debug_train.py --mode full --model_type classification
+
+# 或分步执行
+python debug_train.py --mode generate      # 生成模拟数据
+python debug_train.py --mode train         # 训练分类模型
+python debug_train.py --mode test          # 测试模型
+```
+
+### 5.2 使用真实数据训练
+
+```bash
+# 1. 准备数据（见第 4 节）
+python load_geotiff.py --input your_data.tif --output data/train --balance
+
+# 2. 训练分类模型（二分类：滑坡/非滑坡）
+python debug_train.py --mode train --model_type classification
+
+# 3. 训练概率模型（用于生成易发性图）
+python debug_train.py --mode train --model_type probability
+
+# 4. 测试模型
+python debug_train.py --mode test --model_type classification
+python debug_train.py --mode test --model_type probability
+```
+
+### 5.3 调试配置 vs 正式配置
+
+| 配置项 | 调试模式 | 正式模式 |
+|--------|----------|----------|
+| 文件 | [debug_config.py](file:///c:/Users/dollars/code/subjects/src/debug_config.py) | [config.py](file:///c:/Users/dollars/code/subjects/src/config.py) |
+| 输入通道 | 5 | 18 |
+| 图像尺寸 | 256 × 256 | 1664 × 2327 |
+| Transformer | 2层, 2头 | 3层, 4头 |
+| 训练轮数 | 3 | 50 |
+| 批次大小 | 4 | 8 |
+| 入口脚本 | debug_train.py | main.py |
+
+---
+
+## 6. 生成易发性分布图
+
+### 6.1 预测流程
+
+```bash
+# 使用训练好的概率模型生成易发性图
+python predict.py \
+    --input landslide_factors.tif \
+    --model debug_models/debug_best_prob_model.pth \
+    --output predictions \
+    --method quantile
+```
+
+### 6.2 等级划分方法
+
+| 方法 | 说明 | 适用场景 |
+|------|------|----------|
+| `equal_interval` | 等间隔划分 (0-0.2-0.4-0.6-0.8-1.0) | 标准化分布 |
+| `quantile` | 分位数划分（每级占 20% 面积） | **推荐**，更均衡 |
+| `natural_breaks` | 自然间断点聚类 | 符合自然分布 |
+
+### 6.3 易发性等级
+
+| 等级 | 名称 | 颜色 | 概率范围 |
+|------|------|------|----------|
+| 0 | 低易发性 | 深绿色 | 0-20% |
+| 1 | 较低易发性 | 浅绿色 | 20-40% |
+| 2 | 中易发性 | 黄色 | 40-60% |
+| 3 | 较高易发性 | 橙色 | 60-80% |
+| 4 | 高易发性 | 红色 | 80-100% |
+
+### 6.4 输出文件
+
+```
+predictions/
+├── susceptibility_map.png       # 易发性分布图
+├── probability_map.npy           # 概率数组 (H, W)
+├── susceptibility_levels.npy     # 等级数组 (H, W)
+└── statistics.txt               # 各等级面积统计
+```
+
+---
+
+## 7. 可视化工具使用
+
+### 7.1 核心类
+
+[LandslideVisualizer](file:///c:/Users/dollars/code/subjects/src/visualization.py#L6-L147) 提供以下功能：
+
+```python
+from src.visualization import LandslideVisualizer
+
+visualizer = LandslideVisualizer()
+
+# 概率转等级
+levels = visualizer.probability_to_levels(probability_map, method='quantile')
+
+# 绘制易发性图
+visualizer.plot_susceptibility_map(levels, output_path='map.png')
+
+# 绘制概率图
+visualizer.plot_probability_map(probability_map, output_path='prob.png')
+
+# 计算统计信息
+stats = visualizer.calculate_area_statistics(levels)
+visualizer.print_statistics(stats)
+```
+
+### 7.2 绘制带滑坡点的分布图
+
+```python
+# 如果你有滑坡点坐标
+landslide_points = np.array([[y1, x1], [y2, x2], ...])
+
+visualizer.plot_susceptibility_map(
+    levels,
+    output_path='map_with_points.png',
+    show_slide_points=True,
+    slide_points=landslide_points
+)
+```
+
+---
+
+## 8. 关键代码逻辑
+
+### 8.1 数据加载器
+
+[MultiBandGeoTIFFLoader](file:///c:/Users/dollars/code/subjects/load_geotiff.py#L24-L174) 支持三种加载方式：
+
+```python
+# 自动选择最优加载方式
+loader = MultiBandGeoTIFFLoader('data.tif')
+loader.load()
+
+# 按中心点提取标签（适用于分类任务）
+features, labels = loader.extract_center_labels(stride=128)
+
+# 创建平衡数据集
+create_balanced_dataset(features, labels, 'data/balanced')
+```
+
+### 8.2 训练数据格式
+
 ```
 data/train/
-├── sample_00000_features.npy  # (5, 256, 256)
-├── sample_00000_label.npy      # (1,) 值为 0 或 1
+├── sample_00000_features.npy  # Shape: (5, 256, 256)  因子数据
+├── sample_00000_label.npy      # Shape: (1,)          标签 0 或 1
 ├── sample_00001_features.npy
 ├── sample_00001_label.npy
 └── ...
 ```
 
----
-
-## 7. 配置对比
-
-| 配置项 | 调试模式 | 正式模式 |
-|--------|----------|----------|
-| 文件 | `src/debug_config.py` | `src/config.py` |
-| 输入通道 | 5 | 18 |
-| 图像尺寸 | 256 × 256 | 1664 × 2327 |
-| CNN 输出通道 | 16 | 16 |
-| CBAM 降维比 | 4 | 16 |
-| Transformer 维度 | 32 | 64 |
-| Transformer 头数 | 2 | 4 |
-| Transformer 层数 | 2 | 3 |
-| SPP 层级 | [1, 2] | [1, 2, 3] |
-| 训练轮数 | 3 | 50 |
-| 批次大小 | 4 | 8 |
-| 学习率 | 1e-3 | 1e-4 |
-| 入口脚本 | `debug_train.py` | `main.py` |
-
----
-
-## 8. 关键代码说明
-
-### 8.1 模型定义
+### 8.3 模型推理
 
 ```python
-from src.debug_config import DebugConfig
-from src.model import LandslideModel
 import torch
+from src.model_segmentation import LandslideProbabilityModel
+from src.debug_config import DebugConfig
 
 config = DebugConfig()
-model = LandslideModel(config)
+model = LandslideProbabilityModel(config)
+model.load_state_dict(torch.load('model.pth'))
+model.eval()
 
-# 输入: 5个因子的特征图
-input_tensor = torch.randn(1, 5, 256, 256)
-
-# 前向传播
+# 单个切片预测
+patch = torch.randn(1, 5, 256, 256)
 with torch.no_grad():
-    output = model(input_tensor)
-
-# 输出: [滑坡概率, 非滑坡概率]
-print(f"滑坡概率: {output[0, 1].item():.4f}")
-print(f"非滑坡概率: {output[0, 0].item():.4f}")
-```
-
-### 8.2 自定义数据加载
-
-```python
-from src.dataloader import LandslideDataset, get_dataloader
-
-dataset = LandslideDataset('data/train')
-dataloader = get_dataloader('data/train', batch_size=4, shuffle=True)
-
-for features, labels in dataloader:
-    print(features.shape)  # (4, 5, 256, 256)
-    print(labels.shape)    # (4,)
-```
-
-### 8.3 GEE 多波段加载
-
-```python
-from load_geotiff import MultiBandGeoTIFFLoader
-
-loader = MultiBandGeoTIFFLoader('landslide_factors.tif')
-loader.load()
-features, labels = loader.extract_center_labels(stride=128)
+    prob = model(patch)  # Shape: (1, 1, 256, 256)
 ```
 
 ---
 
-## 9. 依赖安装
+## 9. 完整工作流程
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Step 1: 数据准备                      │
+├─────────────────────────────────────────────────────────┤
+│  1. GEE 计算滑坡影响因子                                  │
+│  2. 准备滑坡点/非滑坡点矢量数据                           │
+│  3. 将标签转为栅格图层                                   │
+│  4. 合并导出为多波段 GeoTIFF                             │
+└─────────────────────────────────────────────────────────┘
+                          ↓
+┌─────────────────────────────────────────────────────────┐
+│                    Step 2: 数据转换                      │
+├─────────────────────────────────────────────────────────┤
+│  python load_geotiff.py --input data.tif --output train │
+│                           --balance --stride 128        │
+└─────────────────────────────────────────────────────────┘
+                          ↓
+┌─────────────────────────────────────────────────────────┐
+│                    Step 3: 模型训练                      │
+├─────────────────────────────────────────────────────────┤
+│  # 分类模型                                              │
+│  python debug_train.py --mode train                     │
+│                          --model_type classification     │
+│                                                          │
+│  # 概率模型（用于生成易发性图）                          │
+│  python debug_train.py --mode train                     │
+│                          --model_type probability        │
+└─────────────────────────────────────────────────────────┘
+                          ↓
+┌─────────────────────────────────────────────────────────┐
+│                    Step 4: 预测与可视化                  │
+├─────────────────────────────────────────────────────────┤
+│  python predict.py                                      │
+│      --input landslide_factors.tif                       │
+│      --model debug_models/debug_best_prob_model.pth     │
+│      --output predictions                               │
+│      --method quantile                                   │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 10. 依赖安装
 
 ```bash
-# 安装 Python 依赖
+# 安装所有依赖
 pip install -r requirements.txt
 
 # 核心依赖
 torch>=2.0.0
 numpy>=1.21.0
-rasterio>=1.3.0  # 推荐，用于加载 GeoTIFF
-GDAL>=3.5.0     # 可选，rasterio 的后端
+matplotlib>=3.5.0
 tqdm>=4.65.0
+
+# GeoTIFF 加载（选择一个）
+rasterio>=1.3.0    # 推荐
+GDAL>=3.5.0        # 备选
 ```
 
 ---
 
-## 10. 常见问题
+## 11. 常见问题
 
-### Q1: 显存不足怎么办？
+### Q1: 显存不足？
 ```python
 # 降低批次大小
-config.TRAIN_BATCH_SIZE = 2  # 或 1
-
-# 或使用调试模式
-python debug_train.py --mode train
+config.TRAIN_BATCH_SIZE = 2
 ```
 
 ### Q2: 如何增加更多滑坡因子？
-1. 在 `gee_export.js` 中添加新波段
-2. 修改 `debug_config.py` 的 `INPUT_CHANNELS` 和 `FACTOR_NAMES`
-3. 重新导出和转换数据
+1. 在 `gee_export.js` 中添加更多波段
+2. 修改 `debug_config.py` 中的 `INPUT_CHANNELS` 和 `FACTOR_NAMES`
+3. 重新导出数据
 
-### Q3: 如何可视化模型注意力？
-```python
-# 获取 CBAM 注意力权重
-cbam_weights = model.cbam1.channel_attention(features)
+### Q3: 滑坡点太少怎么办？
+```bash
+# 使用 --balance 参数创建平衡数据集
+python load_geotiff.py --input data.tif --output train --balance
 ```
 
-### Q4: 训练中断后如何继续？
+### Q4: 如何在 Colab 中运行？
 ```python
-# 加载已有模型继续训练
-model.load_state_dict(torch.load('debug_models/debug_best_model.pth'))
+!git clone https://github.com/YOUR_USERNAME/subjects.git
+%cd subjects
+!pip install -r requirements.txt
+!python debug_train.py --mode full
 ```
 
 ---
 
-## 11. 项目总结
+## 12. 项目总结
 
 本模型的核心优势：
 
@@ -413,15 +514,15 @@ model.load_state_dict(torch.load('debug_models/debug_best_model.pth'))
 2. **注意力引导**：CBAM 自动聚焦滑坡敏感区域
 3. **全局关联建模**：Transformer 捕捉远距离因子的依赖
 4. **空间感知**：地理位置编码提供绝对位置信息
+5. **易发性分级**：输出 5 级易发性分布图
 
-整个工作流程：
-
+最终输出效果：
 ```
-GEE 导出多波段 GeoTIFF
-        ↓
-load_geotiff.py 提取训练切片
-        ↓
-debug_train.py / main.py 训练模型
-        ↓
-输出滑坡易发性概率图
+predictions/
+└── susceptibility_map.png   # 五色易发性分布图
+                                - 红色: 高易发性
+                                - 橙色: 较高易发性
+                                - 黄色: 中易发性
+                                - 浅绿: 较低易发性
+                                - 深绿: 低易发性
 ```

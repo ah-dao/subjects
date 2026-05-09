@@ -18,7 +18,7 @@ class DebugConfig:
     
     SPP_LEVELS = [1, 2]
     
-    NUM_CLASSES = 2
+    NUM_CLASSES = 5
     
     TRAIN_BATCH_SIZE = 4
     VAL_BATCH_SIZE = 4

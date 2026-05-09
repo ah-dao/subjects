@@ -7,12 +7,14 @@ import numpy as np
 
 from src.debug_config import DebugConfig
 from src.model import LandslideModel
+from src.model_segmentation import LandslideProbabilityModel
 from src.dataloader import LandslideDataset
 from torch.utils.data import DataLoader
 
 class DebugTrainer:
-    def __init__(self):
+    def __init__(self, model_type='classification'):
         self.config = DebugConfig()
+        self.model_type = model_type
         self.setup()
         
     def setup(self):
@@ -27,6 +29,7 @@ class DebugTrainer:
         print(f"Using device: {self.device}")
         print(f"\n{'='*60}")
         print(f"Debug Mode Configuration:")
+        print(f"  - Model Type: {self.model_type}")
         print(f"  - Input: {self.config.INPUT_CHANNELS} channels, {self.config.INPUT_HEIGHT}x{self.config.INPUT_WIDTH}")
         print(f"  - Transformer: {self.config.TRANSFORMER_LAYERS} layers, {self.config.TRANSFORMER_HEADS} heads")
         print(f"  - Epochs: {self.config.NUM_EPOCHS}")
@@ -35,7 +38,10 @@ class DebugTrainer:
         print(f"{'='*60}\n")
         
     def create_model(self):
-        model = LandslideModel(self.config).to(self.device)
+        if self.model_type == 'probability':
+            model = LandslideProbabilityModel(self.config).to(self.device)
+        else:
+            model = LandslideModel(self.config).to(self.device)
         return model
         
     def train(self):
@@ -54,7 +60,14 @@ class DebugTrainer:
         )
         
         model = self.create_model()
-        criterion = nn.CrossEntropyLoss()
+        
+        if self.model_type == 'probability':
+            criterion = nn.BCELoss()
+            model_name = 'debug_best_prob_model.pth'
+        else:
+            criterion = nn.CrossEntropyLoss()
+            model_name = 'debug_best_model.pth'
+        
         optimizer = optim.Adam(model.parameters(), lr=self.config.LEARNING_RATE)
         
         best_val_acc = 0.0
@@ -73,16 +86,22 @@ class DebugTrainer:
                 
                 optimizer.zero_grad()
                 outputs = model(features)
-                loss = criterion(outputs, labels)
+                
+                if self.model_type == 'probability':
+                    loss = criterion(outputs, labels.float().unsqueeze(1))
+                    predicted = (outputs > 0.5).float()
+                    train_correct += (predicted == labels.float().unsqueeze(1)).sum().item()
+                else:
+                    loss = criterion(outputs, labels)
+                    _, predicted = torch.max(outputs.data, 1)
+                    train_correct += (predicted == labels).sum().item()
                 
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
                 optimizer.step()
                 
                 train_loss += loss.item() * features.size(0)
-                _, predicted = torch.max(outputs.data, 1)
                 train_total += labels.size(0)
-                train_correct += (predicted == labels).sum().item()
                 
                 pbar.set_postfix({
                     'loss': f'{train_loss/train_total:.4f}',
@@ -105,7 +124,7 @@ class DebugTrainer:
             if val_acc > best_val_acc:
                 best_val_acc = val_acc
                 torch.save(model.state_dict(), 
-                          os.path.join(self.config.MODEL_SAVE_PATH, 'debug_best_model.pth'))
+                          os.path.join(self.config.MODEL_SAVE_PATH, model_name))
                 print(f"  ✓ Saved best model (val_acc: {val_acc:.4f})")
             
             self.check_overfitting(train_acc, val_acc, epoch)
@@ -130,12 +149,18 @@ class DebugTrainer:
                 labels = labels.to(self.device)
                 
                 outputs = model(features)
-                loss = criterion(outputs, labels)
+                
+                if self.model_type == 'probability':
+                    loss = criterion(outputs, labels.float().unsqueeze(1))
+                    predicted = (outputs > 0.5).float()
+                    val_correct += (predicted == labels.float().unsqueeze(1)).sum().item()
+                else:
+                    loss = criterion(outputs, labels)
+                    _, predicted = torch.max(outputs.data, 1)
+                    val_correct += (predicted == labels).sum().item()
                 
                 val_loss += loss.item() * features.size(0)
-                _, predicted = torch.max(outputs.data, 1)
                 val_total += labels.size(0)
-                val_correct += (predicted == labels).sum().item()
         
         return val_loss / val_total, val_correct / val_total
     
@@ -157,11 +182,17 @@ class DebugTrainer:
         )
         
         model = self.create_model()
-        model.load_state_dict(torch.load(
-            os.path.join(self.config.MODEL_SAVE_PATH, 'debug_best_model.pth')
-        ))
         
-        _, test_acc = self.validate(model, test_loader, nn.CrossEntropyLoss())
+        if self.model_type == 'probability':
+            model_path = os.path.join(self.config.MODEL_SAVE_PATH, 'debug_best_prob_model.pth')
+            criterion = nn.BCELoss()
+        else:
+            model_path = os.path.join(self.config.MODEL_SAVE_PATH, 'debug_best_model.pth')
+            criterion = nn.CrossEntropyLoss()
+        
+        model.load_state_dict(torch.load(model_path))
+        
+        _, test_acc = self.validate(model, test_loader, criterion)
         print(f"\n{'='*60}")
         print(f"Test Accuracy: {test_acc:.4f}")
         print(f"{'='*60}")
@@ -198,6 +229,9 @@ if __name__ == '__main__':
     parser.add_argument('--mode', type=str, default='train',
                         choices=['generate', 'train', 'test', 'full'],
                         help='Mode: generate data, train, test, or full pipeline')
+    parser.add_argument('--model_type', type=str, default='classification',
+                        choices=['classification', 'probability'],
+                        help='Model type: classification or probability')
     
     args = parser.parse_args()
     
@@ -206,13 +240,13 @@ if __name__ == '__main__':
     if args.mode == 'generate':
         generate_debug_data(config)
     elif args.mode == 'train':
-        trainer = DebugTrainer()
+        trainer = DebugTrainer(model_type=args.model_type)
         trainer.train()
     elif args.mode == 'test':
-        trainer = DebugTrainer()
+        trainer = DebugTrainer(model_type=args.model_type)
         trainer.test()
     elif args.mode == 'full':
         generate_debug_data(config)
-        trainer = DebugTrainer()
+        trainer = DebugTrainer(model_type=args.model_type)
         trainer.train()
         trainer.test()
