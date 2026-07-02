@@ -131,45 +131,96 @@ class MultiBandGeoTIFFLoader:
     
     def extract_center_labels(self, stride=128, label_band=-1):
         """
-        按中心点提取切片和标签
+        以标签点为中心提取切片（滑坡点定位 + 随机非滑坡点采样）
         适用于滑坡点/非滑坡点二分类
         
         Args:
-            stride: 步长
+            stride: 步长（保留兼容，新逻辑不使用）
             label_band: 标签波段索引，-1 表示最后一个波段
         
         Returns:
-            features: (N, C, H, W) 特征切片
+            features: (N, C, H, W) 特征切片（仅环境因子，不含标签）
             labels: (N,) 中心点标签
         """
         if self.data is None:
             self.load()
         
         channels, height, width = self.data.shape
-        patch_size = 256  # 固定为模型输入大小
+        patch_size = 256
+        half_patch = patch_size // 2
+        
+        # 确定特征波段范围
+        if label_band == -1:
+            feature_bands = slice(0, -1)
+        else:
+            feature_bands = slice(0, label_band)
+        
+        n_feature_bands = channels - 1
+        
+        # 获取标签波段
+        label_data = self.data[label_band, :, :]
+        
+        # 找到所有滑坡点像素坐标 (label == 1)
+        landslide_coords = np.argwhere(label_data == 1)
+        print(f"在标签图层中找到 {len(landslide_coords)} 个滑坡点像素")
+        
+        if len(landslide_coords) == 0:
+            print("错误: 标签图层中没有任何滑坡点 (label=1)，请检查 GEE 导出是否正确")
+            return np.array([]), np.array([])
+        
+        # 过滤靠近边界的点（无法提取完整 patch）
+        valid_mask = (
+            (landslide_coords[:, 0] >= half_patch) &
+            (landslide_coords[:, 0] < height - half_patch) &
+            (landslide_coords[:, 1] >= half_patch) &
+            (landslide_coords[:, 1] < width - half_patch)
+        )
+        landslide_coords = landslide_coords[valid_mask]
+        print(f"  其中 {len(landslide_coords)} 个点距离边界足够提取完整切片")
+        
+        # 找到所有非滑坡点像素 (label == 0)，同样过滤边界
+        zero_coords = np.argwhere(label_data == 0)
+        zero_valid = (
+            (zero_coords[:, 0] >= half_patch) &
+            (zero_coords[:, 0] < height - half_patch) &
+            (zero_coords[:, 1] >= half_patch) &
+            (zero_coords[:, 1] < width - half_patch)
+        )
+        zero_coords = zero_coords[zero_valid]
+        
+        # 随机选取与滑坡点等量的非滑坡点
+        n_landslide = len(landslide_coords)
+        if len(zero_coords) >= n_landslide:
+            chosen_zero = zero_coords[np.random.choice(len(zero_coords), n_landslide, replace=False)]
+        else:
+            print(f"警告: 可用非滑坡点({len(zero_coords)})少于滑坡点({n_landslide})，将使用全部非滑坡点")
+            chosen_zero = zero_coords
         
         features_list = []
         labels_list = []
         
-        h_steps = (height - patch_size) // stride + 1
-        w_steps = (width - patch_size) // stride + 1
+        # 提取滑坡点切片
+        print(f"提取滑坡点切片 ({n_landslide} 个)...")
+        for i in tqdm(range(n_landslide)):
+            h, w = landslide_coords[i]
+            h_start = h - half_patch
+            w_start = w - half_patch
+            patch = self.data[feature_bands, h_start:h_start + patch_size, w_start:w_start + patch_size]
+            if patch.shape == (n_feature_bands, patch_size, patch_size):
+                features_list.append(patch)
+                labels_list.append(1)
         
-        print(f"Extracting {h_steps * w_steps} center-labeled patches...")
-        
-        for i in tqdm(range(h_steps)):
-            for j in range(w_steps):
-                h_start = i * stride
-                w_start = j * stride
-                
-                h_center = h_start + patch_size // 2
-                w_center = w_start + patch_size // 2
-                
-                features = self.data[:, h_start:h_start+patch_size, w_start:w_start+patch_size]
-                label = self.data[label_band, h_center, w_center]
-                
-                if features.shape == (channels, patch_size, patch_size):
-                    features_list.append(features)
-                    labels_list.append(int(label))
+        # 提取非滑坡点切片
+        n_zero = len(chosen_zero)
+        print(f"提取非滑坡点切片 ({n_zero} 个)...")
+        for i in tqdm(range(n_zero)):
+            h, w = chosen_zero[i]
+            h_start = h - half_patch
+            w_start = w - half_patch
+            patch = self.data[feature_bands, h_start:h_start + patch_size, w_start:w_start + patch_size]
+            if patch.shape == (n_feature_bands, patch_size, patch_size):
+                features_list.append(patch)
+                labels_list.append(0)
         
         return np.array(features_list), np.array(labels_list)
 

@@ -94,8 +94,16 @@ class LandslideProbabilityModel(nn.Module):
         
         self.cnn_block4 = CNNBlock(32, config.TRANSFORMER_DIM, pooling=False)
         
-        self.decoder = nn.Conv2d(config.TRANSFORMER_DIM, 1, kernel_size=3, padding=1)
-        self.upsample = nn.Upsample(scale_factor=4, mode='bilinear', align_corners=True)
+        self.spp = SPPModule(config.SPP_LEVELS)
+        
+        spp_out_dim = config.TRANSFORMER_DIM * (1 + 4 + 9)
+        
+        self.fc1 = nn.Linear(spp_out_dim, 320)
+        self.relu = nn.ReLU(inplace=True)
+        
+        self.fc2 = nn.Linear(320, 128)
+        
+        self.fc3 = nn.Linear(128, 1)
         self.sigmoid = nn.Sigmoid()
         
     def forward(self, x):
@@ -112,8 +120,16 @@ class LandslideProbabilityModel(nn.Module):
         
         x = self.cnn_block4(x)
         
-        x = self.decoder(x)
-        x = self.upsample(x)
+        x = self.spp(x)
+        x = x.view(x.size(0), -1)
+        
+        x = self.fc1(x)
+        x = self.relu(x)
+        
+        x = self.fc2(x)
+        x = self.relu(x)
+        
+        x = self.fc3(x)
         x = self.sigmoid(x)
         
         return x

@@ -33,7 +33,7 @@ class LandslideDataset(Dataset):
         label = np.load(os.path.join(self.data_path, label_file))
         
         features = torch.from_numpy(features).float()
-        label = torch.from_numpy(label).long()
+        label = torch.from_numpy(label).long().squeeze()
         
         if self.transform:
             features = self.transform(features)

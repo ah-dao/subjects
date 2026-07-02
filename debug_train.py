@@ -10,6 +10,7 @@ from src.model import LandslideModel
 from src.model_segmentation import LandslideProbabilityModel
 from src.dataloader import LandslideDataset
 from torch.utils.data import DataLoader
+from load_geotiff import MultiBandGeoTIFFLoader, create_balanced_dataset
 
 class DebugTrainer:
     def __init__(self, model_type='classification'):
@@ -222,16 +223,46 @@ def generate_debug_data(config):
     print(f"  - Train: 20 samples")
     print(f"  - Val: 10 samples")
 
+def prepare_data_from_geotiff(geotiff_path, output_dir='debug_data', stride=128):
+    """
+    从GEE导出的GeoTIFF准备训练数据
+    
+    Args:
+        geotiff_path: 输入GeoTIFF路径（5个环境因子 + 1个标签波段）
+        output_dir: 输出目录
+        stride: 提取切片的步长
+    """
+    print("从GeoTIFF准备训练数据...")
+    
+    loader = MultiBandGeoTIFFLoader(geotiff_path)
+    loader.load()
+    
+    features, labels = loader.extract_center_labels(stride=stride, label_band=-1)
+    
+    print(f"\n提取到 {len(features)} 个样本")
+    print(f"  滑坡样本: {np.sum(labels == 1)}")
+    print(f"  非滑坡样本: {np.sum(labels == 0)}")
+    
+    create_balanced_dataset(features, labels, output_dir)
+    
+    print(f"\n数据准备完成！")
+    print(f"  训练数据: {output_dir}/train")
+    print(f"  验证数据: {output_dir}/val")
+
 if __name__ == '__main__':
     import argparse
     
     parser = argparse.ArgumentParser(description='Debug Training for Landslide Model')
     parser.add_argument('--mode', type=str, default='train',
-                        choices=['generate', 'train', 'test', 'full'],
-                        help='Mode: generate data, train, test, or full pipeline')
+                        choices=['generate', 'prepare_geotiff', 'train', 'test', 'full'],
+                        help='Mode: generate data, prepare from GeoTIFF, train, test, or full pipeline')
     parser.add_argument('--model_type', type=str, default='classification',
                         choices=['classification', 'probability'],
                         help='Model type: classification or probability')
+    parser.add_argument('--geotiff', type=str, 
+                        help='GeoTIFF文件路径（用于prepare_geotiff模式）')
+    parser.add_argument('--stride', type=int, default=128,
+                        help='切片提取步长（用于prepare_geotiff模式）')
     
     args = parser.parse_args()
     
@@ -239,6 +270,11 @@ if __name__ == '__main__':
     
     if args.mode == 'generate':
         generate_debug_data(config)
+    elif args.mode == 'prepare_geotiff':
+        if args.geotiff is None:
+            print("错误: 请使用 --geotiff 参数指定GeoTIFF文件路径")
+            exit(1)
+        prepare_data_from_geotiff(args.geotiff, stride=args.stride)
     elif args.mode == 'train':
         trainer = DebugTrainer(model_type=args.model_type)
         trainer.train()

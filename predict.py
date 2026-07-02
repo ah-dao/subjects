@@ -31,10 +31,13 @@ class SusceptibilityPredictor:
             probability = output.squeeze().cpu().numpy()
         return probability
     
-    def predict_whole_image(self, geotiff_path, output_dir='predictions', stride_factor=0.5):
+    def predict_whole_image(self, geotiff_path, output_dir='predictions', stride_factor=0.5, has_label=False):
         """
         对整个研究区图像进行预测
         使用滑动窗口方式处理大图像
+        
+        Args:
+            has_label: GeoTIFF是否包含标签波段（预测时应为False）
         """
         os.makedirs(output_dir, exist_ok=True)
         
@@ -45,6 +48,11 @@ class SusceptibilityPredictor:
         channels, height, width = data.shape
         patch_size = self.config.INPUT_HEIGHT
         stride = int(patch_size * stride_factor)
+        
+        # 如果有标签，只取前channels-1个环境因子波段
+        if has_label:
+            data = data[:-1, :, :]
+            channels = channels - 1
         
         print(f"\n图像尺寸: {height} x {width}, 通道数: {channels}")
         print(f"切片大小: {patch_size}x{patch_size}, 步长: {stride}")
@@ -68,9 +76,10 @@ class SusceptibilityPredictor:
                     patch = data[:, h_start:h_end, w_start:w_end]
                     
                     if patch.shape == (channels, patch_size, patch_size):
-                        prob_patch = self.predict_single_patch(patch)
+                        prob_value = self.predict_single_patch(patch)
                         
-                        probability_map[h_start:h_end, w_start:w_end] += prob_patch
+                        # 概率是单个值，将整个切片区域都填充这个概率
+                        probability_map[h_start:h_end, w_start:w_end] += prob_value
                         count_map[h_start:h_end, w_start:w_end] += 1
                     
                     pbar.update(1)
@@ -115,12 +124,14 @@ class SusceptibilityPredictor:
 
 def main():
     parser = argparse.ArgumentParser(description='生成滑坡易发性分布图')
-    parser.add_argument('--input', type=str, required=True, help='输入的多波段GeoTIFF文件')
+    parser.add_argument('--input', type=str, required=True, help='输入的多波段GeoTIFF文件（仅5个环境因子）')
     parser.add_argument('--model', type=str, required=True, help='训练好的模型权重文件')
     parser.add_argument('--output', type=str, default='predictions', help='输出目录')
     parser.add_argument('--method', type=str, default='quantile', 
                         choices=['equal_interval', 'quantile', 'natural_breaks'],
                         help='等级划分方法')
+    parser.add_argument('--has_label', action='store_true', 
+                        help='输入GeoTIFF是否包含标签波段（预测时应为False）')
     
     args = parser.parse_args()
     
@@ -128,7 +139,7 @@ def main():
     predictor = SusceptibilityPredictor(config)
     
     predictor.load_model(args.model)
-    predictor.predict_whole_image(args.input, args.output)
+    predictor.predict_whole_image(args.input, args.output, has_label=args.has_label)
     predictor.generate_susceptibility_output(args.output, args.method)
     
     print("\n预测完成！")
