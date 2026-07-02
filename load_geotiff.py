@@ -268,9 +268,11 @@ def create_balanced_dataset(features, labels, output_dir, samples_per_class=None
     """
     创建平衡的训练数据集
     确保滑坡和非滑坡样本数量相等
+    按 70/15/15 比例划分 train/val/test
     """
     os.makedirs(os.path.join(output_dir, 'train'), exist_ok=True)
     os.makedirs(os.path.join(output_dir, 'val'), exist_ok=True)
+    os.makedirs(os.path.join(output_dir, 'test'), exist_ok=True)
     
     labels = labels.flatten()
     
@@ -293,9 +295,13 @@ def create_balanced_dataset(features, labels, output_dir, samples_per_class=None
     all_idx = np.concatenate([landslide_samples, non_landslide_samples])
     np.random.shuffle(all_idx)
     
-    split_idx = int(len(all_idx) * 0.8)
-    train_idx = all_idx[:split_idx]
-    val_idx = all_idx[split_idx:]
+    n_total = len(all_idx)
+    train_end = int(n_total * 0.7)
+    val_end = int(n_total * 0.85)
+    
+    train_idx = all_idx[:train_end]
+    val_idx = all_idx[train_end:val_end]
+    test_idx = all_idx[val_end:]
     
     for i, idx in enumerate(train_idx):
         np.save(os.path.join(output_dir, 'train', f'landslide_{i}_features.npy'),
@@ -309,9 +315,16 @@ def create_balanced_dataset(features, labels, output_dir, samples_per_class=None
         np.save(os.path.join(output_dir, 'val', f'landslide_{i}_label.npy'),
                 np.array([labels[idx]], dtype=np.int64))
     
+    for i, idx in enumerate(test_idx):
+        np.save(os.path.join(output_dir, 'test', f'landslide_{i}_features.npy'),
+                features[idx].astype(np.float32))
+        np.save(os.path.join(output_dir, 'test', f'landslide_{i}_label.npy'),
+                np.array([labels[idx]], dtype=np.int64))
+    
     print(f"\nCreated balanced dataset:")
     print(f"  Train: {len(train_idx)} samples")
     print(f"  Val: {len(val_idx)} samples")
+    print(f"  Test: {len(test_idx)} samples")
 
 
 if __name__ == '__main__':

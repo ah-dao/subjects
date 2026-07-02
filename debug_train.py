@@ -203,7 +203,7 @@ class DebugTrainer:
 def generate_debug_data(config):
     print("Generating debug data...")
     
-    for split, n_samples in [('train', 20), ('val', 10)]:
+    for split, n_samples in [('train', 20), ('val', 10), ('test', 10)]:
         data_path = getattr(config, f'{split.upper()}_DATA_PATH')
         os.makedirs(data_path, exist_ok=True)
         
