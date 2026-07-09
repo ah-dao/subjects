@@ -264,12 +264,13 @@ def geotiff_to_training_data(tif_path, output_dir, patch_size=256, stride=128,
     return n_samples
 
 
-def create_balanced_dataset(features, labels, output_dir, samples_per_class=None):
+def create_balanced_dataset(features, labels, output_dir, samples_per_class=None, seed=42):
     """
     创建平衡的训练数据集
     确保滑坡和非滑坡样本数量相等
     按 70/15/15 比例划分 train/val/test
     """
+    np.random.seed(seed)
     os.makedirs(os.path.join(output_dir, 'train'), exist_ok=True)
     os.makedirs(os.path.join(output_dir, 'val'), exist_ok=True)
     os.makedirs(os.path.join(output_dir, 'test'), exist_ok=True)

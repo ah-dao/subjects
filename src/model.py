@@ -1,24 +1,10 @@
 import torch
 import torch.nn as nn
+from .layers import CNNBlock
 from .cbam import CBAM
 from .transformer import GeoPositionalEncoding, TransformerEncoder
 from .spp import SPPModule
 
-class CNNBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, padding=1, pooling=True):
-        super(CNNBlock, self).__init__()
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding)
-        self.bn = nn.BatchNorm2d(out_channels)
-        self.relu = nn.ReLU(inplace=True)
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2) if pooling else None
-        
-    def forward(self, x):
-        x = self.conv(x)
-        x = self.bn(x)
-        x = self.relu(x)
-        if self.pool is not None:
-            x = self.pool(x)
-        return x
 
 class LandslideModel(nn.Module):
     def __init__(self, config):
@@ -47,7 +33,7 @@ class LandslideModel(nn.Module):
         
         self.spp = SPPModule(config.SPP_LEVELS)
         
-        spp_out_dim = config.TRANSFORMER_DIM * (1 + 4 + 9)
+        spp_out_dim = config.TRANSFORMER_DIM * self.spp.out_dim
         
         self.fc1 = nn.Linear(spp_out_dim, 320)
         self.relu = nn.ReLU(inplace=True)
@@ -81,6 +67,5 @@ class LandslideModel(nn.Module):
         x = self.relu(x)
         
         x = self.fc3(x)
-        x = self.softmax(x)
         
         return x

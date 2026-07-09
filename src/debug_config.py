@@ -35,6 +35,16 @@ class DebugConfig:
     WEIGHT_DECAY = 1e-5
     NUM_EPOCHS = 3
     
+    # 学习率调度
+    LR_SCHEDULER_PATIENCE = 1   # ReduceLROnPlateau 等待轮数
+    LR_SCHEDULER_FACTOR = 0.5   # 学习率衰减因子
+    
+    # 早停
+    EARLY_STOP_PATIENCE = 2     # 验证准确率不再提升时等待轮数
+    
+    # 数据归一化
+    NORMALIZE = True            # 是否对输入数据做min-max归一化
+    
     # 数据路径
     TRAIN_DATA_PATH = 'debug_data/train'
     VAL_DATA_PATH = 'debug_data/val'

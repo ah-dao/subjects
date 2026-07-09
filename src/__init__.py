@@ -1,6 +1,8 @@
 from .config import Config
 from .debug_config import DebugConfig
+from .layers import CNNBlock
 from .model import LandslideModel
+from .model_segmentation import LandslideSegmentationModel, LandslideProbabilityModel
 from .cbam import CBAM
 from .transformer import GeoPositionalEncoding, TransformerEncoder
 from .spp import SPPModule
@@ -11,7 +13,10 @@ from .test import test_model
 __all__ = [
     'Config',
     'DebugConfig',
+    'CNNBlock',
     'LandslideModel',
+    'LandslideSegmentationModel',
+    'LandslideProbabilityModel',
     'CBAM',
     'GeoPositionalEncoding',
     'TransformerEncoder',

@@ -1,113 +1,149 @@
 # 快速使用指南
 
-## 📋 完整工作流程
-
-### 阶段1：模型训练（需要真实滑坡点）
+## 目标：从零到5级易发性分布图
 
 ```
-GEE导出训练数据 → 生成切片 → 训练模型
-    (6个波段)       (5因子+标签)   (二分类)
+数据准备 → 模型训练 → 模型测试 → 全图预测 → 5级易发性图
 ```
 
-### 阶段2：生成易发性地图
+***
 
-```
-GEE导出预测数据 → 模型预测 → 分5个等级 → 可视化
-    (5个波段)       (全区域)    (概率→等级)
-```
+## 完整流程
 
----
-
-## 🔧 详细步骤
-
-### 1. 从GEE导出数据
-
-#### 训练数据（需要标签）
-- **波段顺序**：
-  1. elevation (海拔)
-  2. slope (坡度)
-  3. aspect (坡向)
-  4. TRI (地形起伏度)
-  5. curvature (曲率)
-  6. label (标签: 1=滑坡, 0=非滑坡)
-
-#### 预测数据（无需标签）
-- **波段顺序**：同上1-5（仅环境因子）
-
----
-
-### 2. 准备训练数据
+### 1. 准备训练数据（使用真实 GeoTIFF）
 
 ```bash
-# 方法1：使用debug_train.py（推荐）
-python debug_train.py --mode prepare_geotiff --geotiff your_training_data.tif --stride 128
+# GeoTIFF 要求: 6个波段 (5个环境影响因子 + 1个标签波段)
+# Band 1-5: elevation, slope, aspect, TRI, curvature
+# Band 6:   label (0=非滑坡, 1=滑坡)
 
-# 方法2：使用load_geotiff.py
-python load_geotiff.py --input your_training_data.tif --output debug_data --balance --has_label
+python debug_train.py --mode prepare_geotiff --geotiff your_training_data.tif
 ```
 
----
+输出：`debug_data/train/`, `debug_data/val/`, `debug_data/test/`（70/15/15 划分，平衡采样，seed=42 可复现）
 
-### 3. 训练模型
+> **调试阶段**也可以生成虚拟数据快速验证流程：
+>
+> ```bash
+> python debug_train.py --mode generate   # 生成20+10+10条随机样本
+> ```
+
+***
+
+### 2. 训练模型
 
 ```bash
-# 使用概率模型（推荐，用于生成易发性地图）
-python debug_train.py --mode train --model_type probability
+python debug_train.py --mode train
 ```
 
-训练好的模型保存在：`debug_models/debug_best_prob_model.pth`
+训练特性：
 
----
+- 模型：`LandslideProbabilityModel`（Sigmoid 输出 0\~1 概率值）
+- 损失：BCELoss，准确率阈值 0.5
+- 自动 min-max 逐通道归一化
+- `ReduceLROnPlateau` 学习率调度（val\_acc 不提升时 LR 减半）
+- 早停（连续 2 轮无提升自动停止）
+- 梯度裁剪（max\_norm=1.0）
+- 过拟合自动检测警告 
 
-### 4. 生成易发性地图
+模型保存至：`debug_models/debug_best_prob_model.pth`
+
+***
+
+### 3. 测试模型
+
+```bash
+python debug_train.py --mode test
+```
+
+***
+
+### 4. 生成5级易发性分布图
 
 ```bash
 python predict.py \
-    --input your_prediction_data.tif \
+    --input your_factors.tif \
     --model debug_models/debug_best_prob_model.pth \
     --output predictions \
     --method quantile
 ```
 
-输出：
-- `predictions/probability_map.npy` - 概率图
-- `predictions/susceptibility_map.png` - 可视化图
-- `predictions/susceptibility_levels.npy` - 等级图
-- `predictions/statistics.txt` - 统计信息
+输出文件：
 
----
+| 文件                                      | 说明              |
+| --------------------------------------- | --------------- |
+| `predictions/susceptibility_map.png`    | 五色易发性分布图（可视化）   |
+| `predictions/probability_map.npy`       | 逐像素滑坡概率矩阵 (H,W) |
+| `predictions/susceptibility_levels.npy` | 0\~4 等级矩阵 (H,W) |
+| `predictions/statistics.txt`            | 各等级面积/占比统计      |
 
-## 📊 易发性等级
+***
 
-| 等级 | 名称 | 颜色 | 说明 |
-|------|------|------|------|
-| 0 | 低易发性 | 深绿 | 概率最低 |
-| 1 | 较低易发性 | 浅绿 | 概率较低 |
-| 2 | 中易发性 | 黄 | 概率中等 |
-| 3 | 较高易发性 | 橙 | 概率较高 |
-| 4 | 高易发性 | 红 | 概率最高 |
-
----
-
-## ⚙️ 等级划分方法
-
-- `equal_interval` - 等间距划分
-- `quantile` - 分位数划分（推荐）
-- `natural_breaks` - 自然断点法
+## 一键运行（调试模式）
 
 ```bash
-# 示例：使用自然断点法
-python predict.py --method natural_breaks ...
+# 生成虚拟数据 → 训练 → 测试，一键完成
+python debug_train.py --mode full
 ```
 
----
+调试参数（轻量，低资源消耗）：
 
-## 📁 文件说明
+| 参数          | 值                      | 说明         |
+| ----------- | ---------------------- | ---------- |
+| 输入          | 5×256×256              | 5个因子，256尺寸 |
+| 批次          | 4                      | 低显存友好      |
+| 训练轮数        | 3                      | 快速验证       |
+| Transformer | 2层, 2头, dim=32         | 轻量化        |
+| 早停          | patience=2             | 避免无效训练     |
+| LR调度        | patience=1, factor=0.5 | 快速调整       |
 
-| 文件 | 用途 |
-|------|------|
-| `load_geotiff.py` | GeoTIFF转训练切片 |
-| `debug_train.py` | 模型训练 |
-| `predict.py` | 生成易发性地图 |
-| `src/model_segmentation.py` | 概率模型定义 |
-| `src/visualization.py` | 可视化工具 |
+***
+
+## 易发性等级
+
+| 等级 | 名称    | 颜色 |
+| -- | ----- | -- |
+| 0  | 低易发性  | 深绿 |
+| 1  | 较低易发性 | 浅绿 |
+| 2  | 中易发性  | 黄色 |
+| 3  | 较高易发性 | 橙色 |
+| 4  | 高易发性  | 红色 |
+
+等级划分方式：
+
+```bash
+--method quantile       # 分位数（推荐，每级面积均衡）
+--method equal_interval # 等间距（0-0.2-0.4-0.6-0.8-1.0）
+--method natural_breaks # 自然断点
+```
+
+***
+
+## 预测粒度控制
+
+```bash
+# stride_factor 越小越精细，默认 0.125
+python predict.py ... --stride_factor 0.125   # stride=32, 精细
+python predict.py ... --stride_factor 0.25    # stride=64, 较快
+```
+
+模型对每个 256×256 切片输出 1 个概率值，只填充切片中心区域，重叠取平均——避免马赛克效应。
+
+***
+
+## 关键文件
+
+| 文件                          | 用途                           |
+| --------------------------- | ---------------------------- |
+| `debug_train.py`            | 训练/测试/数据准备一站式入口              |
+| `predict.py`                | 全图预测 → 5级易发性图                |
+| `load_geotiff.py`           | GeoTIFF 加载、切片提取、平衡数据集        |
+| `src/model_segmentation.py` | LandslideProbabilityModel 定义 |
+| `src/layers.py`             | CNNBlock 公共模块                |
+| `src/cbam.py`               | CBAM 通道+空间注意力                |
+| `src/transformer.py`        | Transformer + 地理位置编码         |
+| `src/spp.py`                | SPP 空间金字塔池化（动态维度计算）          |
+| `src/dataloader.py`         | 数据加载 + min-max 归一化           |
+| `src/visualization.py`      | 5级分级 + 可视化 + 面积统计            |
+| `src/debug_config.py`       | 调试参数配置                       |
+

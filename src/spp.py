@@ -6,6 +6,11 @@ class SPPModule(nn.Module):
     def __init__(self, levels=[1, 2, 3]):
         super(SPPModule, self).__init__()
         self.levels = levels
+
+    @property
+    def out_dim(self):
+        """输出维度乘数 = sum(level² for level in levels)"""
+        return sum(l * l for l in self.levels)
         
     def forward(self, x):
         batch_size, channels, height, width = x.size()

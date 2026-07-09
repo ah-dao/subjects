@@ -2,20 +2,19 @@ import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from tqdm import tqdm
 import numpy as np
 
 from src.debug_config import DebugConfig
-from src.model import LandslideModel
 from src.model_segmentation import LandslideProbabilityModel
 from src.dataloader import LandslideDataset
 from torch.utils.data import DataLoader
 from load_geotiff import MultiBandGeoTIFFLoader, create_balanced_dataset
 
 class DebugTrainer:
-    def __init__(self, model_type='classification'):
+    def __init__(self):
         self.config = DebugConfig()
-        self.model_type = model_type
         self.setup()
         
     def setup(self):
@@ -25,53 +24,53 @@ class DebugTrainer:
         os.makedirs(self.config.VAL_DATA_PATH, exist_ok=True)
         
         torch.manual_seed(self.config.SEED)
+        np.random.seed(self.config.SEED)
         
         self.device = self.config.DEVICE
+        self.model_name = 'debug_best_prob_model.pth'
         print(f"Using device: {self.device}")
         print(f"\n{'='*60}")
         print(f"Debug Mode Configuration:")
-        print(f"  - Model Type: {self.model_type}")
+        print(f"  - Model: LandslideProbabilityModel")
         print(f"  - Input: {self.config.INPUT_CHANNELS} channels, {self.config.INPUT_HEIGHT}x{self.config.INPUT_WIDTH}")
         print(f"  - Transformer: {self.config.TRANSFORMER_LAYERS} layers, {self.config.TRANSFORMER_HEADS} heads")
+        print(f"  - SPP levels: {self.config.SPP_LEVELS}")
         print(f"  - Epochs: {self.config.NUM_EPOCHS}")
         print(f"  - Batch size: {self.config.TRAIN_BATCH_SIZE}")
         print(f"  - Learning rate: {self.config.LEARNING_RATE}")
+        print(f"  - Normalize: {self.config.NORMALIZE}")
+        print(f"  - Early stop patience: {self.config.EARLY_STOP_PATIENCE}")
         print(f"{'='*60}\n")
         
     def create_model(self):
-        if self.model_type == 'probability':
-            model = LandslideProbabilityModel(self.config).to(self.device)
-        else:
-            model = LandslideModel(self.config).to(self.device)
-        return model
+        return LandslideProbabilityModel(self.config).to(self.device)
         
     def train(self):
         train_loader = DataLoader(
-            LandslideDataset(self.config.TRAIN_DATA_PATH),
+            LandslideDataset(self.config.TRAIN_DATA_PATH, normalize=self.config.NORMALIZE),
             batch_size=self.config.TRAIN_BATCH_SIZE,
             shuffle=True,
             num_workers=0
         )
         
         val_loader = DataLoader(
-            LandslideDataset(self.config.VAL_DATA_PATH),
+            LandslideDataset(self.config.VAL_DATA_PATH, normalize=self.config.NORMALIZE),
             batch_size=self.config.VAL_BATCH_SIZE,
             shuffle=False,
             num_workers=0
         )
         
         model = self.create_model()
-        
-        if self.model_type == 'probability':
-            criterion = nn.BCELoss()
-            model_name = 'debug_best_prob_model.pth'
-        else:
-            criterion = nn.CrossEntropyLoss()
-            model_name = 'debug_best_model.pth'
-        
-        optimizer = optim.Adam(model.parameters(), lr=self.config.LEARNING_RATE)
+        criterion = nn.BCELoss()
+        optimizer = optim.Adam(model.parameters(), lr=self.config.LEARNING_RATE, 
+                              weight_decay=self.config.WEIGHT_DECAY)
+        scheduler = ReduceLROnPlateau(optimizer, mode='max', 
+                                      factor=self.config.LR_SCHEDULER_FACTOR,
+                                      patience=self.config.LR_SCHEDULER_PATIENCE,
+                                      verbose=True)
         
         best_val_acc = 0.0
+        early_stop_counter = 0
         
         for epoch in range(self.config.NUM_EPOCHS):
             model.train()
@@ -88,14 +87,9 @@ class DebugTrainer:
                 optimizer.zero_grad()
                 outputs = model(features)
                 
-                if self.model_type == 'probability':
-                    loss = criterion(outputs, labels.float().unsqueeze(1))
-                    predicted = (outputs > 0.5).float()
-                    train_correct += (predicted == labels.float().unsqueeze(1)).sum().item()
-                else:
-                    loss = criterion(outputs, labels)
-                    _, predicted = torch.max(outputs.data, 1)
-                    train_correct += (predicted == labels).sum().item()
+                loss = criterion(outputs, labels.float().unsqueeze(1))
+                predicted = (outputs > 0.5).float()
+                train_correct += (predicted == labels.float().unsqueeze(1)).sum().item()
                 
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
@@ -118,17 +112,31 @@ class DebugTrainer:
             
             val_loss, val_acc = self.validate(model, val_loader, criterion)
             
+            # 学习率调度（基于验证准确率）
+            scheduler.step(val_acc)
+            current_lr = optimizer.param_groups[0]['lr']
+            
             print(f"\nEpoch {epoch+1} Summary:")
             print(f"  Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f}")
             print(f"  Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}")
+            print(f"  LR: {current_lr:.2e}")
             
             if val_acc > best_val_acc:
                 best_val_acc = val_acc
                 torch.save(model.state_dict(), 
-                          os.path.join(self.config.MODEL_SAVE_PATH, model_name))
+                          os.path.join(self.config.MODEL_SAVE_PATH, self.model_name))
                 print(f"  ✓ Saved best model (val_acc: {val_acc:.4f})")
+                early_stop_counter = 0
+            else:
+                early_stop_counter += 1
+                print(f"  No improvement for {early_stop_counter} epoch(s)")
             
             self.check_overfitting(train_acc, val_acc, epoch)
+            
+            # 早停检查
+            if early_stop_counter >= self.config.EARLY_STOP_PATIENCE:
+                print(f"\n  ⏹ Early stopping triggered after {early_stop_counter} epochs without improvement")
+                break
             
             print()
         
@@ -151,14 +159,9 @@ class DebugTrainer:
                 
                 outputs = model(features)
                 
-                if self.model_type == 'probability':
-                    loss = criterion(outputs, labels.float().unsqueeze(1))
-                    predicted = (outputs > 0.5).float()
-                    val_correct += (predicted == labels.float().unsqueeze(1)).sum().item()
-                else:
-                    loss = criterion(outputs, labels)
-                    _, predicted = torch.max(outputs.data, 1)
-                    val_correct += (predicted == labels).sum().item()
+                loss = criterion(outputs, labels.float().unsqueeze(1))
+                predicted = (outputs > 0.5).float()
+                val_correct += (predicted == labels.float().unsqueeze(1)).sum().item()
                 
                 val_loss += loss.item() * features.size(0)
                 val_total += labels.size(0)
@@ -176,22 +179,20 @@ class DebugTrainer:
     
     def test(self):
         test_loader = DataLoader(
-            LandslideDataset(self.config.TEST_DATA_PATH),
+            LandslideDataset(self.config.TEST_DATA_PATH, normalize=self.config.NORMALIZE),
             batch_size=self.config.TEST_BATCH_SIZE,
             shuffle=False,
             num_workers=0
         )
         
         model = self.create_model()
+        criterion = nn.BCELoss()
         
-        if self.model_type == 'probability':
-            model_path = os.path.join(self.config.MODEL_SAVE_PATH, 'debug_best_prob_model.pth')
-            criterion = nn.BCELoss()
-        else:
-            model_path = os.path.join(self.config.MODEL_SAVE_PATH, 'debug_best_model.pth')
-            criterion = nn.CrossEntropyLoss()
+        model_path = os.path.join(self.config.MODEL_SAVE_PATH, self.model_name)
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"模型文件不存在: {model_path}\n请先运行 --mode train 训练模型")
         
-        model.load_state_dict(torch.load(model_path))
+        model.load_state_dict(torch.load(model_path, map_location=self.device))
         
         _, test_acc = self.validate(model, test_loader, criterion)
         print(f"\n{'='*60}")
@@ -222,6 +223,7 @@ def generate_debug_data(config):
     print(f"Generated debug data in 'debug_data/' folder")
     print(f"  - Train: 20 samples")
     print(f"  - Val: 10 samples")
+    print(f"  - Test: 10 samples")
 
 def prepare_data_from_geotiff(geotiff_path, output_dir='debug_data', stride=128):
     """
@@ -243,11 +245,12 @@ def prepare_data_from_geotiff(geotiff_path, output_dir='debug_data', stride=128)
     print(f"  滑坡样本: {np.sum(labels == 1)}")
     print(f"  非滑坡样本: {np.sum(labels == 0)}")
     
-    create_balanced_dataset(features, labels, output_dir)
+    create_balanced_dataset(features, labels, output_dir, seed=42)
     
     print(f"\n数据准备完成！")
     print(f"  训练数据: {output_dir}/train")
     print(f"  验证数据: {output_dir}/val")
+    print(f"  测试数据: {output_dir}/test")
 
 if __name__ == '__main__':
     import argparse
@@ -256,9 +259,6 @@ if __name__ == '__main__':
     parser.add_argument('--mode', type=str, default='train',
                         choices=['generate', 'prepare_geotiff', 'train', 'test', 'full'],
                         help='Mode: generate data, prepare from GeoTIFF, train, test, or full pipeline')
-    parser.add_argument('--model_type', type=str, default='classification',
-                        choices=['classification', 'probability'],
-                        help='Model type: classification or probability')
     parser.add_argument('--geotiff', type=str, 
                         help='GeoTIFF文件路径（用于prepare_geotiff模式）')
     parser.add_argument('--stride', type=int, default=128,
@@ -276,13 +276,13 @@ if __name__ == '__main__':
             exit(1)
         prepare_data_from_geotiff(args.geotiff, stride=args.stride)
     elif args.mode == 'train':
-        trainer = DebugTrainer(model_type=args.model_type)
+        trainer = DebugTrainer()
         trainer.train()
     elif args.mode == 'test':
-        trainer = DebugTrainer(model_type=args.model_type)
+        trainer = DebugTrainer()
         trainer.test()
     elif args.mode == 'full':
         generate_debug_data(config)
-        trainer = DebugTrainer(model_type=args.model_type)
+        trainer = DebugTrainer()
         trainer.train()
         trainer.test()
