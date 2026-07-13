@@ -16,21 +16,38 @@ class SusceptibilityPredictor:
         self.device = config.DEVICE
         self.model = None
         self.probability_map = None
+        self.global_min = None
+        self.global_max = None
     
     def load_model(self, model_path):
-        """加载训练好的模型"""
+        """加载训练好的模型和全局归一化参数"""
         self.model = LandslideProbabilityModel(self.config).to(self.device)
         checkpoint = torch.load(model_path, map_location=self.device)
-        self.model.load_state_dict(checkpoint)
+        
+        if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+            self.model.load_state_dict(checkpoint['model_state_dict'])
+            self.global_min = checkpoint.get('global_min')
+            self.global_max = checkpoint.get('global_max')
+            if self.global_min is not None:
+                print(f"模型已加载: {model_path} (含全局归一化参数)")
+                print(f"  全局 min: {self.global_min}")
+                print(f"  全局 max: {self.global_max}")
+            else:
+                print(f"模型已加载: {model_path} (无全局归一化参数，将使用per-patch归一化)")
+        else:
+            self.model.load_state_dict(checkpoint)
+            print(f"模型已加载: {model_path} (旧格式，将使用per-patch归一化)")
+        
         self.model.eval()
-        print(f"模型已加载: {model_path}")
     
     def predict_single_patch(self, patch):
         """预测单个切片的滑坡概率"""
         with torch.no_grad():
-            # 归一化
             patch_tensor = torch.from_numpy(patch).float()
-            patch_tensor = LandslideDataset._min_max_normalize(patch_tensor)
+            # 使用全局 min/max 归一化（与训练集一致，保留不同区域间的量纲差异）
+            patch_tensor = LandslideDataset._min_max_normalize(
+                patch_tensor, self.global_min, self.global_max
+            )
             patch_tensor = patch_tensor.unsqueeze(0).to(self.device)
             output = self.model(patch_tensor)
             probability = output.squeeze().cpu().numpy()

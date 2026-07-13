@@ -66,8 +66,15 @@ class DebugTrainer:
                               weight_decay=self.config.WEIGHT_DECAY)
         scheduler = ReduceLROnPlateau(optimizer, mode='max', 
                                       factor=self.config.LR_SCHEDULER_FACTOR,
-                                      patience=self.config.LR_SCHEDULER_PATIENCE,
-                                      verbose=True)
+                                      patience=self.config.LR_SCHEDULER_PATIENCE)
+        
+        # 计算训练集全局 min/max（用于预测时归一化，保持训练/预测一致性）
+        print("计算训练集全局归一化参数...")
+        global_min, global_max = LandslideDataset.compute_global_stats(
+            self.config.TRAIN_DATA_PATH, num_channels=self.config.INPUT_CHANNELS
+        )
+        print(f"  全局 min: {global_min}")
+        print(f"  全局 max: {global_max}")
         
         best_val_acc = 0.0
         early_stop_counter = 0
@@ -123,8 +130,11 @@ class DebugTrainer:
             
             if val_acc > best_val_acc:
                 best_val_acc = val_acc
-                torch.save(model.state_dict(), 
-                          os.path.join(self.config.MODEL_SAVE_PATH, self.model_name))
+                torch.save({
+                    'model_state_dict': model.state_dict(),
+                    'global_min': global_min,
+                    'global_max': global_max,
+                }, os.path.join(self.config.MODEL_SAVE_PATH, self.model_name))
                 print(f"  ✓ Saved best model (val_acc: {val_acc:.4f})")
                 early_stop_counter = 0
             else:
@@ -192,7 +202,11 @@ class DebugTrainer:
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"模型文件不存在: {model_path}\n请先运行 --mode train 训练模型")
         
-        model.load_state_dict(torch.load(model_path, map_location=self.device))
+        checkpoint = torch.load(model_path, map_location=self.device)
+        if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+            model.load_state_dict(checkpoint['model_state_dict'])
+        else:
+            model.load_state_dict(checkpoint)
         
         _, test_acc = self.validate(model, test_loader, criterion)
         print(f"\n{'='*60}")
