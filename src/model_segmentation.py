@@ -92,7 +92,7 @@ class LandslideProbabilityModel(nn.Module):
         self.fc3 = nn.Linear(128, 1)
         self.sigmoid = nn.Sigmoid()
         
-    def forward(self, x):
+    def forward(self, x, temperature=1.0):
         x = self.cnn_block1(x)
         x = self.cbam1(x)
         
@@ -116,6 +116,7 @@ class LandslideProbabilityModel(nn.Module):
         x = self.relu(x)
         
         x = self.fc3(x)
-        x = self.sigmoid(x)
+        # 温度系数软化 sigmoid：T=1 正常训练，T>1 拉开概率分布避免集中
+        x = self.sigmoid(x / temperature)
         
         return x

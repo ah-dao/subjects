@@ -202,7 +202,7 @@ class DebugTrainer:
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"模型文件不存在: {model_path}\n请先运行 --mode train 训练模型")
         
-        checkpoint = torch.load(model_path, map_location=self.device)
+        checkpoint = torch.load(model_path, map_location=self.device, weights_only=False)
         if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
             model.load_state_dict(checkpoint['model_state_dict'])
         else:

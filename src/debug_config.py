@@ -45,6 +45,10 @@ class DebugConfig:
     # 数据归一化
     NORMALIZE = True            # 是否对输入数据做min-max归一化
     
+    # 预测温度系数：T>1 软化 sigmoid 输出，拉开概率分布避免集中在低值
+    # T=1 等价于原始 sigmoid；推荐 T=2~4，值越大分布越均匀
+    TEMPERATURE = 3.0
+    
     # 数据路径
     TRAIN_DATA_PATH = 'debug_data/train'
     VAL_DATA_PATH = 'debug_data/val'

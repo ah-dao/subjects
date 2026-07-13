@@ -10,6 +10,13 @@ from src.dataloader import LandslideDataset
 from load_geotiff import MultiBandGeoTIFFLoader
 from src.visualization import generate_susceptibility_map
 
+try:
+    import rasterio
+    HAS_RASTERIO = True
+except ImportError:
+    HAS_RASTERIO = False
+
+
 class SusceptibilityPredictor:
     def __init__(self, config):
         self.config = config
@@ -18,11 +25,12 @@ class SusceptibilityPredictor:
         self.probability_map = None
         self.global_min = None
         self.global_max = None
+        self.input_profile = None  # 保存输入GeoTIFF的地理参考信息
     
     def load_model(self, model_path):
         """加载训练好的模型和全局归一化参数"""
         self.model = LandslideProbabilityModel(self.config).to(self.device)
-        checkpoint = torch.load(model_path, map_location=self.device)
+        checkpoint = torch.load(model_path, map_location=self.device, weights_only=False)
         
         if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
             self.model.load_state_dict(checkpoint['model_state_dict'])
@@ -40,42 +48,28 @@ class SusceptibilityPredictor:
         
         self.model.eval()
     
-    def predict_single_patch(self, patch):
-        """预测单个切片的滑坡概率"""
-        with torch.no_grad():
-            patch_tensor = torch.from_numpy(patch).float()
-            # 使用全局 min/max 归一化（与训练集一致，保留不同区域间的量纲差异）
-            patch_tensor = LandslideDataset._min_max_normalize(
-                patch_tensor, self.global_min, self.global_max
-            )
-            patch_tensor = patch_tensor.unsqueeze(0).to(self.device)
-            output = self.model(patch_tensor)
-            probability = output.squeeze().cpu().numpy()
-        return probability
-    
     def predict_whole_image(self, geotiff_path, output_dir='predictions', 
-                           stride_factor=0.125, has_label=False):
+                           stride_factor=0.125, has_label=False, batch_size=None):
         """
-        对整个研究区图像进行预测
-        使用细粒度滑动窗口 + 重叠平均，避免马赛克效应
-        
+        对整个研究区图像进行预测（流式批量推理）
         Args:
             geotiff_path: GeoTIFF文件路径
             output_dir: 输出目录
-            stride_factor: 步长相对于patch_size的比例（越小越精细，默认为1/8）
+            stride_factor: 步长相对于patch_size的比例
             has_label: GeoTIFF是否包含标签波段
+            batch_size: 批量大小，默认自动根据显存选择
         """
         os.makedirs(output_dir, exist_ok=True)
         
         loader = MultiBandGeoTIFFLoader(geotiff_path)
         loader.load()
         data = loader.data
+        self.input_profile = loader.profile
         
         channels, height, width = data.shape
         patch_size = self.config.INPUT_HEIGHT
         stride = max(1, int(patch_size * stride_factor))
         
-        # 如果有标签，只取前channels-1个环境因子波段
         if has_label:
             data = data[:-1, :, :]
             channels = channels - 1
@@ -83,69 +77,74 @@ class SusceptibilityPredictor:
         print(f"\n图像尺寸: {height} x {width}, 通道数: {channels}")
         print(f"切片大小: {patch_size}x{patch_size}, 步长: {stride} (factor={stride_factor})")
         
+        region_size = stride
+        h_steps = (height - patch_size) // stride + 1
+        w_steps = (width - patch_size) // stride + 1
+        total_patches = h_steps * w_steps
+        
+        print(f"总切片数: {h_steps} x {w_steps} = {total_patches}")
+        
+        # 自动选择批量大小
+        if batch_size is None:
+            batch_size = 64 if self.device.type == 'cuda' else 16
+        print(f"批量大小: {batch_size}")
+        
         probability_map = np.zeros((height, width), dtype=np.float32)
         count_map = np.zeros((height, width), dtype=np.int32)
         
-        h_steps = (height - patch_size) // stride + 1
-        w_steps = (width - patch_size) // stride + 1
+        # 流式批量处理：分批收集patch位置，边提取边推理，避免一次性加载全部
+        batch_patches = []
+        batch_positions = []
         
-        print(f"总切片数: {h_steps} x {w_steps} = {h_steps * w_steps}")
+        pbar = tqdm(total=total_patches, desc='预测')
         
-        # 预测区域大小 = stride（取切片中心 stride×stride 区域填入概率值）
-        region_size = stride
+        for i in range(h_steps):
+            for j in range(w_steps):
+                h_start = i * stride
+                w_start = j * stride
+                h_end = h_start + patch_size
+                w_end = w_start + patch_size
+                
+                patch = data[:, h_start:h_end, w_start:w_end]
+                if patch.shape == (channels, patch_size, patch_size):
+                    batch_patches.append(patch)
+                    
+                    h_center = h_start + (patch_size - region_size) // 2
+                    w_center = w_start + (patch_size - region_size) // 2
+                    batch_positions.append((
+                        max(0, h_center),
+                        min(height, h_center + region_size),
+                        max(0, w_center),
+                        min(width, w_center + region_size)
+                    ))
+                
+                # 达到批量大小时执行推理
+                if len(batch_patches) >= batch_size:
+                    self._process_batch(
+                        batch_patches, batch_positions,
+                        probability_map, count_map
+                    )
+                    pbar.update(len(batch_patches))
+                    batch_patches = []
+                    batch_positions = []
         
-        with tqdm(total=h_steps * w_steps) as pbar:
-            for i in range(h_steps):
-                for j in range(w_steps):
-                    h_start = i * stride
-                    w_start = j * stride
-                    h_end = h_start + patch_size
-                    w_end = w_start + patch_size
-                    
-                    patch = data[:, h_start:h_end, w_start:w_end]
-                    
-                    if patch.shape == (channels, patch_size, patch_size):
-                        prob_value = self.predict_single_patch(patch)
-                        
-                        # 只填充切片的中心区域 (region_size × region_size)
-                        h_center = h_start + (patch_size - region_size) // 2
-                        w_center = w_start + (patch_size - region_size) // 2
-                        
-                        # 确保边界不越界
-                        h_c_start = max(0, h_center)
-                        h_c_end = min(height, h_center + region_size)
-                        w_c_start = max(0, w_center)
-                        w_c_end = min(width, w_center + region_size)
-                        
-                        probability_map[h_c_start:h_c_end, w_c_start:w_c_end] += prob_value
-                        count_map[h_c_start:h_c_end, w_c_start:w_c_end] += 1
-                    
-                    pbar.update(1)
+        # 处理剩余不足一批的patch
+        if batch_patches:
+            self._process_batch(
+                batch_patches, batch_positions,
+                probability_map, count_map
+            )
+            pbar.update(len(batch_patches))
         
-        # 首次遍历：填充剩余未被覆盖的像素（用最近的有值像素填充）
-        uncovered_mask = count_map == 0
-        if uncovered_mask.sum() > 0:
-            print(f"填充 {uncovered_mask.sum()} 个未覆盖像素（使用边缘滑动窗口）...")
-            # 对于未覆盖的边缘像素，用更小的stride进行边缘填充
-            edge_patch_size = patch_size
-            for fill_i in range(0, height, stride):
-                for fill_j in range(0, width, stride):
-                    if count_map[fill_i:min(fill_i+stride, height), 
-                                 fill_j:min(fill_j+stride, width)].min() > 0:
-                        continue  # 该区域已覆盖
-                    
-                    h_start = max(0, min(fill_i, height - edge_patch_size))
-                    w_start = max(0, min(fill_j, width - edge_patch_size))
-                    h_end = h_start + edge_patch_size
-                    w_end = w_start + edge_patch_size
-                    
-                    patch = data[:, h_start:h_end, w_start:w_end]
-                    if patch.shape == (channels, edge_patch_size, edge_patch_size):
-                        prob_value = self.predict_single_patch(patch)
-                        probability_map[fill_i:min(fill_i+stride, height), 
-                                       fill_j:min(fill_j+stride, width)] += prob_value
-                        count_map[fill_i:min(fill_i+stride, height), 
-                                 fill_j:min(fill_j+stride, width)] += 1
+        pbar.close()
+        
+        # 边缘填充
+        uncovered = count_map == 0
+        if uncovered.sum() > 0:
+            print(f"填充 {uncovered.sum()} 个未覆盖像素...")
+            self._fill_uncovered(probability_map, count_map, uncovered)
+        else:
+            print("所有像素均已覆盖，无需填充")
         
         count_map[count_map == 0] = 1
         probability_map = probability_map / count_map
@@ -157,6 +156,110 @@ class SusceptibilityPredictor:
         print(f"概率范围: [{probability_map.min():.4f}, {probability_map.max():.4f}]")
         
         return probability_map
+    
+    def _process_batch(self, patches, positions, prob_map, cnt_map):
+        """处理一批patch：归一化 + GPU推理 + 散回概率图"""
+        batch = np.stack(patches, axis=0).astype(np.float32)
+        batch_tensor = torch.from_numpy(batch)
+        batch_tensor = LandslideDataset._normalize_batch(
+            batch_tensor, self.global_min, self.global_max
+        )
+        batch_tensor = batch_tensor.to(self.device)
+        
+        with torch.no_grad():
+            outputs = self.model(batch_tensor, temperature=self.config.TEMPERATURE)
+            probs = outputs.cpu().numpy().ravel()
+        
+        for k, prob in enumerate(probs):
+            h0, h1, w0, w1 = positions[k]
+            prob_map[h0:h1, w0:w1] += float(prob)
+            cnt_map[h0:h1, w0:w1] += 1
+    
+    def _fill_uncovered(self, prob_map, cnt_map, uncovered):
+        """填充未被滑动窗口覆盖的像素"""
+        try:
+            from scipy.ndimage import distance_transform_edt
+            _, indices = distance_transform_edt(uncovered, return_indices=True)
+            prob_map[uncovered] = prob_map[indices[0][uncovered], indices[1][uncovered]]
+            cnt_map[uncovered] = 1
+        except ImportError:
+            # 无scipy时的简单回退：向上/左传播最近的有效值
+            print("  (scipy未安装，使用简单最近邻填充)")
+            for i in range(1, prob_map.shape[0]):
+                for j in range(prob_map.shape[1]):
+                    if cnt_map[i, j] == 0:
+                        if cnt_map[i-1, j] > 0:
+                            prob_map[i, j] = prob_map[i-1, j]
+                        elif j > 0 and cnt_map[i, j-1] > 0:
+                            prob_map[i, j] = prob_map[i, j-1]
+                        cnt_map[i, j] = 1
+    
+    def export_geotiff(self, output_dir='predictions', filename='susceptibility_5levels.tif'):
+        """导出带地理参考的5级易发性图GeoTIFF，可直接用于GeoServer发布"""
+        if self.probability_map is None:
+            raise ValueError("请先调用 predict_whole_image() 生成概率图")
+        
+        if not HAS_RASTERIO:
+            print("警告: 未安装rasterio，无法导出GeoTIFF。请 pip install rasterio")
+            return None
+        
+        if self.input_profile is None:
+            print("警告: 无地理参考信息，导出为纯GeoTIFF")
+            return None
+        
+        # 兼容 rasterio 和 GDAL 两种 profile 格式
+        crs = self.input_profile.get('crs')
+        transform = self.input_profile.get('transform')
+        if transform is None and 'geotransform' in self.input_profile:
+            from rasterio.transform import from_origin
+            gt = self.input_profile['geotransform']
+            transform = from_origin(gt[0], gt[3], gt[1], abs(gt[5]))
+        if crs is None and 'projection' in self.input_profile:
+            from rasterio.crs import CRS
+            crs = CRS.from_wkt(self.input_profile['projection'])
+        
+        if crs is None or transform is None:
+            print("警告: 无法解析地理参考信息，导出为纯GeoTIFF")
+            return None
+        
+        # 转为5级等级图
+        levels = self._probability_to_levels(self.probability_map)
+        levels = levels.astype(np.uint8)
+        
+        output_path = os.path.join(output_dir, filename)
+        
+        with rasterio.open(
+            output_path, 'w',
+            driver='GTiff',
+            height=levels.shape[0],
+            width=levels.shape[1],
+            count=1,
+            dtype='uint8',
+            crs=crs,
+            transform=transform,
+            nodata=255,
+            compress='lzw'
+        ) as dst:
+            dst.write(levels, 1)
+            dst.set_band_description(1, 'Susceptibility Level (0-4)')
+        
+        print(f"\nGeoTIFF已导出: {output_path}")
+        print(f"  CRS: {crs}")
+        print(f"  等级0=低, 1=较低, 2=中, 3=较高, 4=高")
+        print(f"\n  GeoServer导入步骤:")
+        print(f"    1. 将此文件放入GeoServer数据目录")
+        print(f"    2. 创建GeoTIFF数据存储")
+        print(f"    3. 发布为WMS图层")
+        print(f"    4. 在SLD样式中设置5级颜色映射")
+        
+        return output_path
+    
+    def _probability_to_levels(self, probability_map):
+        """将概率图转为5级等级（quantile分位数）"""
+        data_flat = probability_map.flatten()
+        bins = np.quantile(data_flat, [0.2, 0.4, 0.6, 0.8])
+        levels = np.digitize(probability_map, bins)
+        return levels.astype(np.int8)
     
     def generate_susceptibility_output(self, output_dir='predictions', method='quantile'):
         """生成易发性分布图和统计信息"""
@@ -186,6 +289,7 @@ class SusceptibilityPredictor:
         
         return levels, stats
 
+
 def main():
     parser = argparse.ArgumentParser(description='生成滑坡易发性分布图')
     parser.add_argument('--input', type=str, required=True, help='输入的多波段GeoTIFF文件（仅5个环境因子）')
@@ -198,17 +302,29 @@ def main():
                         help='输入GeoTIFF是否包含标签波段（预测时应为False）')
     parser.add_argument('--stride_factor', type=float, default=0.125,
                         help='滑动窗口步长相对于patch_size的比例(越小越精细，默认1/8)')
+    parser.add_argument('--temperature', type=float, default=None,
+                        help='温度系数，T>1拉开概率分布。默认使用config中的值(3.0)')
+    parser.add_argument('--batch_size', type=int, default=None,
+                        help='预测批量大小，默认GPU=64/CPU=16')
+    parser.add_argument('--export_geotiff', action='store_true',
+                        help='导出带地理参考的GeoTIFF，供GeoServer发布')
     
     args = parser.parse_args()
     
     config = DebugConfig()
+    if args.temperature is not None:
+        config.TEMPERATURE = args.temperature
     predictor = SusceptibilityPredictor(config)
     
     predictor.load_model(args.model)
     predictor.predict_whole_image(args.input, args.output, 
                                   stride_factor=args.stride_factor,
-                                  has_label=args.has_label)
+                                  has_label=args.has_label,
+                                  batch_size=args.batch_size)
     predictor.generate_susceptibility_output(args.output, args.method)
+    
+    if args.export_geotiff:
+        predictor.export_geotiff(args.output)
     
     print("\n预测完成！")
 

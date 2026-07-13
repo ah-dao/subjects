@@ -8,7 +8,7 @@ from .dataloader import get_dataloader
 
 def test_model(config):
     model = LandslideModel(config).to(config.DEVICE)
-    model.load_state_dict(torch.load(os.path.join(config.MODEL_SAVE_PATH, 'best_model.pth')))
+    model.load_state_dict(torch.load(os.path.join(config.MODEL_SAVE_PATH, 'best_model.pth'), weights_only=False))
     model.eval()
     
     test_loader = get_dataloader(config.TEST_DATA_PATH, config.TEST_BATCH_SIZE, shuffle=False)

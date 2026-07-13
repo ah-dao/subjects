@@ -1,7 +1,35 @@
+import matplotlib
+matplotlib.use('Agg')  # 无显示后端
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap, BoundaryNorm
 import matplotlib.patches as mpatches
+
+# 配置中文字体（跨平台兼容）
+import matplotlib.font_manager as fm
+import os
+
+def _setup_chinese_font():
+    """配置中文字体，兼容 Windows/macOS/Linux"""
+    candidates = [
+        ('SimHei', 'Microsoft YaHei', 'Noto Sans CJK SC', 'WenQuanYi Micro Hei',
+         'Source Han Sans CN', 'PingFang SC', 'Hiragino Sans GB', 'DejaVu Sans'),
+    ]
+    for chain in candidates:
+        for name in chain:
+            try:
+                if any(f.name == name for f in fm.fontManager.ttflist):
+                    plt.rcParams['font.sans-serif'] = [name] + list(plt.rcParams['font.sans-serif'])
+                    plt.rcParams['axes.unicode_minus'] = False
+                    return name
+            except Exception:
+                continue
+    # 兜底：使用系统中文字体
+    plt.rcParams['font.sans-serif'] = ['Microsoft YaHei', 'SimHei', 'DejaVu Sans']
+    plt.rcParams['axes.unicode_minus'] = False
+    return None
+
+_CHINESE_FONT = _setup_chinese_font()
 
 class LandslideVisualizer:
     def __init__(self):

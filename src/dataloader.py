@@ -40,7 +40,7 @@ class LandslideDataset(Dataset):
         label = torch.from_numpy(label).long().squeeze()
         
         if self.normalize:
-            features = self._min_max_normalize(features, self.global_min, self.global_max)
+            features = self._normalize_batch(features, self.global_min, self.global_max)
         
         if self.transform:
             features = self.transform(features)
@@ -48,30 +48,44 @@ class LandslideDataset(Dataset):
         return features, label
     
     @staticmethod
-    def _min_max_normalize(tensor, global_min=None, global_max=None):
-        """逐通道 min-max 归一化到 [0, 1]
+    def _normalize_batch(tensor, global_min, global_max):
+        """批量归一化：(B, C, H, W) 或 (C, H, W) 张量
         
-        Args:
-            tensor: (C, H, W) 输入张量
-            global_min: 全局最小值数组 (C,)，为 None 时使用 per-sample 统计
-            global_max: 全局最大值数组 (C,)，为 None 时使用 per-sample 统计
+        global_min/global_max 为 None 时使用 per-sample 归一化
         """
-        if global_min is not None and global_max is not None:
-            for c in range(tensor.shape[0]):
-                denom = global_max[c] - global_min[c]
-                if denom > 0:
-                    tensor[c] = (tensor[c] - global_min[c]) / denom
-                else:
-                    tensor[c] = 0.0
+        if global_min is None or global_max is None:
+            # per-sample 归一化
+            if tensor.dim() == 4:
+                for b in range(tensor.shape[0]):
+                    for c in range(tensor.shape[1]):
+                        ch = tensor[b, c]
+                        ch_min, ch_max = ch.min(), ch.max()
+                        if ch_max > ch_min:
+                            tensor[b, c] = (ch - ch_min) / (ch_max - ch_min)
+                        else:
+                            tensor[b, c] = 0.0
+            else:
+                for c in range(tensor.shape[0]):
+                    ch = tensor[c]
+                    ch_min, ch_max = ch.min(), ch.max()
+                    if ch_max > ch_min:
+                        tensor[c] = (ch - ch_min) / (ch_max - ch_min)
+                    else:
+                        tensor[c] = 0.0
+            return tensor
+        
+        if isinstance(global_min, np.ndarray):
+            global_min = torch.from_numpy(global_min).float()
+            global_max = torch.from_numpy(global_max).float()
+        if tensor.dim() == 4:
+            gmin = global_min.view(1, -1, 1, 1).to(tensor.device)
+            gmax = global_max.view(1, -1, 1, 1).to(tensor.device)
         else:
-            for c in range(tensor.shape[0]):
-                ch = tensor[c]
-                ch_min, ch_max = ch.min(), ch.max()
-                if ch_max > ch_min:
-                    tensor[c] = (ch - ch_min) / (ch_max - ch_min)
-                else:
-                    tensor[c] = 0.0
-        return tensor
+            gmin = global_min.view(-1, 1, 1).to(tensor.device)
+            gmax = global_max.view(-1, 1, 1).to(tensor.device)
+        denom = gmax - gmin
+        denom[denom == 0] = 1.0
+        return (tensor - gmin) / denom
 
     @staticmethod
     def compute_global_stats(data_path, num_channels=None):
