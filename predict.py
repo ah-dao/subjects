@@ -180,8 +180,8 @@ class SusceptibilityPredictor:
                 mask = center_masks[idx][:h_c_end - h_c, :w_c_end - w_c]
                 prob_map_h = h_c_end - h_c
                 prob_map_w = w_c_end - w_c
-                prob_map[h_c:h_c_end, w_c:w_c_end][~mask[:prob_map_h, :prob_map_w]] += float(probs[k])
-                cnt_map[h_c:h_c_end, w_c:w_c_end][~mask[:prob_map_h, :prob_map_w]] += 1
+                probability_map[h_c:h_c_end, w_c:w_c_end][~mask[:prob_map_h, :prob_map_w]] += float(probs[k])
+                count_map[h_c:h_c_end, w_c:w_c_end][~mask[:prob_map_h, :prob_map_w]] += 1
             
             pbar.update(len(indices))
         
