@@ -33,7 +33,7 @@ class DebugConfig:
     
     LEARNING_RATE = 1e-3
     WEIGHT_DECAY = 1e-5
-    NUM_EPOCHS = 3
+    NUM_EPOCHS = 20
     
     # 学习率调度
     LR_SCHEDULER_PATIENCE = 1   # ReduceLROnPlateau 等待轮数

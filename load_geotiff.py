@@ -55,7 +55,7 @@ class MultiBandGeoTIFFLoader:
                 'nodata': src.nodata
             }
             print(f"Loaded with rasterio: shape={self.data.shape}")
-            print(f"Bands: {[src.descriptions[i] or self.factor_names[i] for i in range(src.count)]}")
+            print(f"Bands: {[src.descriptions[i] if src.descriptions[i] else f'band_{i+1}' for i in range(src.count)]}")
     
     def _load_gdal(self):
         """使用 GDAL 加载"""

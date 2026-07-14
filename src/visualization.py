@@ -30,16 +30,19 @@ def _setup_chinese_font():
     return None
 
 _CHINESE_FONT = _setup_chinese_font()
+_HAS_CHINESE = _CHINESE_FONT is not None
 
 class LandslideVisualizer:
     def __init__(self):
         self.levels = {
-            0: {'name': '低易发性', 'color': '#228B22'},
-            1: {'name': '较低易发性', 'color': '#90EE90'},
-            2: {'name': '中易发性', 'color': '#FFFF00'},
-            3: {'name': '较高易发性', 'color': '#FFA500'},
-            4: {'name': '高易发性', 'color': '#DC143C'}
+            0: {'name': '低易发性', 'name_en': 'Very Low'},
+            1: {'name': '较低易发性', 'name_en': 'Low'},
+            2: {'name': '中易发性', 'name_en': 'Moderate'},
+            3: {'name': '较高易发性', 'name_en': 'High'},
+            4: {'name': '高易发性', 'name_en': 'Very High'}
         }
+        
+        self._use_chinese = _HAS_CHINESE
         
         self.color_list = [
             self.levels[0]['color'],
@@ -53,19 +56,31 @@ class LandslideVisualizer:
         self.cmap = ListedColormap(self.color_list)
         self.norm = BoundaryNorm(self.bounds, self.cmap.N)
     
+    def _label(self, level):
+        """根据系统字体返回中文或英文标签"""
+        if self._use_chinese:
+            return self.levels[level]['name']
+        return self.levels[level]['name_en']
+    
     def probability_to_levels(self, probability_map, method='equal_interval'):
         """
-        将概率图转换为5级易发性等级图
+        将概率图转换为5级易发性等级图（自动排除NaN）
         """
+        valid_mask = ~np.isnan(probability_map)
+        valid_data = probability_map[valid_mask]
+        
+        if len(valid_data) == 0:
+            return np.full(probability_map.shape, -1, dtype=np.int8)
+        
         if method == 'equal_interval':
             bins = np.linspace(0, 1, 6)
-            levels = np.digitize(probability_map, bins) - 1
+            levels = np.full(probability_map.shape, -1, dtype=np.int8)
+            levels[valid_mask] = np.digitize(valid_data, bins) - 1
             levels[levels < 0] = 0
             levels[levels > 4] = 4
             
         elif method == 'natural_breaks':
-            data_flat = probability_map.flatten()
-            sorted_data = np.sort(data_flat)
+            sorted_data = np.sort(valid_data)
             n = len(sorted_data)
             bins = [
                 sorted_data[int(n * 0.2)],
@@ -73,11 +88,13 @@ class LandslideVisualizer:
                 sorted_data[int(n * 0.6)],
                 sorted_data[int(n * 0.8)]
             ]
-            levels = np.digitize(probability_map, bins)
+            levels = np.full(probability_map.shape, -1, dtype=np.int8)
+            levels[valid_mask] = np.digitize(valid_data, bins)
             
         elif method == 'quantile':
-            bins = np.quantile(probability_map, [0.2, 0.4, 0.6, 0.8])
-            levels = np.digitize(probability_map, bins)
+            bins = np.quantile(valid_data, [0.2, 0.4, 0.6, 0.8])
+            levels = np.full(probability_map.shape, -1, dtype=np.int8)
+            levels[valid_mask] = np.digitize(valid_data, bins)
             
         else:
             raise ValueError(f"Unknown method: {method}")
@@ -86,13 +103,20 @@ class LandslideVisualizer:
     
     def plot_susceptibility_map(self, levels, output_path=None, show_slide_points=False, slide_points=None):
         """
-        绘制滑坡易发性分布图
+        绘制滑坡易发性分布图（NaN区域显示为白色）
         """
         fig, ax = plt.subplots(figsize=(12, 10))
         
-        im = ax.imshow(levels, cmap=self.cmap, norm=self.norm, origin='upper')
+        # NaN区域显示为白色
+        cmap = self.cmap.copy()
+        cmap.set_bad(color='white')
         
-        patches = [mpatches.Patch(color=self.levels[i]['color'], label=self.levels[i]['name']) 
+        # masked array: -1 = NaN → 白色
+        masked_levels = np.ma.masked_where(levels < 0, levels.astype(float))
+        
+        im = ax.imshow(masked_levels, cmap=cmap, norm=self.norm, origin='upper')
+        
+        patches = [mpatches.Patch(color=self.levels[i]['color'], label=self._label(i)) 
                    for i in range(5)]
         
         if show_slide_points and slide_points is not None:
@@ -119,11 +143,16 @@ class LandslideVisualizer:
     
     def plot_probability_map(self, probability_map, output_path=None):
         """
-        绘制概率分布图
+        绘制概率分布图（NaN区域显示为白色）
         """
         fig, ax = plt.subplots(figsize=(12, 10))
         
-        im = ax.imshow(probability_map, cmap='RdYlGn_r', vmin=0, vmax=1, origin='upper')
+        cmap = plt.cm.RdYlGn_r
+        cmap.set_bad(color='white')
+        
+        masked_prob = np.ma.masked_invalid(probability_map)
+        
+        im = ax.imshow(masked_prob, cmap=cmap, vmin=0, vmax=1, origin='upper')
         
         cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
         cbar.set_label('滑坡概率', fontsize=12)
@@ -145,16 +174,21 @@ class LandslideVisualizer:
     
     def calculate_area_statistics(self, levels):
         """
-        计算各等级易发性区域的面积统计
+        计算各等级易发性区域的面积统计（排除NaN/-1）
         """
-        total_pixels = levels.size
+        valid_mask = levels >= 0
+        total_pixels = valid_mask.sum()
+        
+        if total_pixels == 0:
+            return {level: {'name': self._label(level), 'pixels': 0, 'percentage': 0.0} 
+                    for level in range(5)}
         
         stats = {}
         for level in range(5):
-            count = np.sum(levels == level)
+            count = np.sum(levels[valid_mask] == level)
             percentage = (count / total_pixels) * 100
             stats[level] = {
-                'name': self.levels[level]['name'],
+                'name': self._label(level),
                 'pixels': count,
                 'percentage': percentage
             }

@@ -51,19 +51,20 @@ class SusceptibilityPredictor:
     def predict_whole_image(self, geotiff_path, output_dir='predictions', 
                            stride_factor=0.125, has_label=False, batch_size=None):
         """
-        对整个研究区图像进行预测（流式批量推理）
+        对整个研究区图像进行预测（流式处理，低内存，自动跳过NaN）
+        
         Args:
             geotiff_path: GeoTIFF文件路径
             output_dir: 输出目录
             stride_factor: 步长相对于patch_size的比例
             has_label: GeoTIFF是否包含标签波段
-            batch_size: 批量大小，默认自动根据显存选择
+            batch_size: 批量大小，默认GPU=64/CPU=16
         """
         os.makedirs(output_dir, exist_ok=True)
         
         loader = MultiBandGeoTIFFLoader(geotiff_path)
         loader.load()
-        data = loader.data
+        data = loader.data.astype(np.float32)  # 转float32省内存
         self.input_profile = loader.profile
         
         channels, height, width = data.shape
@@ -74,92 +75,137 @@ class SusceptibilityPredictor:
             data = data[:-1, :, :]
             channels = channels - 1
         
+        # 检测研究区NaN mask（GEE .clip() 导出的NoData = NaN）
+        # 任一通道为NaN的像素标记为研究区外
+        nan_mask = np.any(np.isnan(data), axis=0)  # (H, W), True = 研究区外
+        valid_pixels = (~nan_mask).sum()
+        total_pixels = nan_mask.size
         print(f"\n图像尺寸: {height} x {width}, 通道数: {channels}")
+        print(f"研究区内像素: {valid_pixels} ({valid_pixels/total_pixels*100:.1f}%)")
+        print(f"研究区外像素: {total_pixels - valid_pixels} ({(total_pixels-valid_pixels)/total_pixels*100:.1f}%)")
         print(f"切片大小: {patch_size}x{patch_size}, 步长: {stride} (factor={stride_factor})")
         
+        # 将NaN替换为0，确保模型输入无NaN
+        # 研究区外像素通过nan_mask控制不写入概率图
+        data = np.nan_to_num(data, nan=0.0, copy=False)
+        
         region_size = stride
+        center_offset = (patch_size - region_size) // 2
+        
         h_steps = (height - patch_size) // stride + 1
         w_steps = (width - patch_size) // stride + 1
         total_patches = h_steps * w_steps
-        
         print(f"总切片数: {h_steps} x {w_steps} = {total_patches}")
         
-        # 自动选择批量大小
         if batch_size is None:
-            batch_size = 64 if self.device.type == 'cuda' else 16
+            batch_size = 32 if self.device.type == 'cuda' else 8
         print(f"批量大小: {batch_size}")
         
-        probability_map = np.zeros((height, width), dtype=np.float32)
+        # ── 使用 as_strided 一次性创建所有 patch 的零拷贝视图（O(1) 时间）──
+        # 消除双重 Python 循环，避免大量临时对象导致 Colab 内存溢出
+        from numpy.lib.stride_tricks import as_strided
+        
+        patch_view_shape = (h_steps, w_steps, channels, patch_size, patch_size)
+        patch_view_strides = (
+            stride * data.strides[1],   # 行方向步长
+            stride * data.strides[2],   # 列方向步长
+            data.strides[0],            # 通道
+            data.strides[1],            # patch 内行
+            data.strides[2],            # patch 内列
+        )
+        all_patches = as_strided(data, shape=patch_view_shape, strides=patch_view_strides)
+        all_patches = all_patches.reshape(-1, channels, patch_size, patch_size)  # (N, C, H, W)
+        
+        # 同样用 as_strided 提取每个 patch 的中心区域 NaN mask
+        nan_mask_view = nan_mask[
+            center_offset:center_offset + h_steps * stride,
+            center_offset:center_offset + w_steps * stride
+        ]
+        center_mask_shape = (h_steps, w_steps, region_size, region_size)
+        center_mask_strides = (
+            stride * nan_mask.strides[0],
+            stride * nan_mask.strides[1],
+            nan_mask.strides[0],
+            nan_mask.strides[1],
+        )
+        center_masks = as_strided(nan_mask_view, shape=center_mask_shape, strides=center_mask_strides)
+        center_masks = center_masks.reshape(-1, region_size, region_size)  # (N, R, R)
+        
+        # 筛选有效 patch：中心区域至少有一个研究区内像素
+        valid_mask = ~np.all(center_masks, axis=(1, 2))  # (N,)
+        valid_indices = np.where(valid_mask)[0]
+        skipped_patches = total_patches - len(valid_indices)
+        print(f"有效切片: {len(valid_indices)} (跳过 {skipped_patches} 个)")
+        
+        # 预计算有效 patch 的网格坐标
+        valid_i = valid_indices // w_steps
+        valid_j = valid_indices % w_steps
+        
+        # 概率图初始化为NaN（研究区外保持NaN）
+        probability_map = np.full((height, width), np.nan, dtype=np.float32)
         count_map = np.zeros((height, width), dtype=np.int32)
         
-        # 流式批量处理：分批收集patch位置，边提取边推理，避免一次性加载全部
-        batch_patches = []
-        batch_positions = []
+        # 单层批量循环处理
+        num_batches = int(np.ceil(len(valid_indices) / batch_size))
+        pbar = tqdm(total=len(valid_indices), desc='预测')
         
-        pbar = tqdm(total=total_patches, desc='预测')
-        
-        for i in range(h_steps):
-            for j in range(w_steps):
+        for batch_idx in range(num_batches):
+            start = batch_idx * batch_size
+            end = min(start + batch_size, len(valid_indices))
+            indices = valid_indices[start:end]
+            
+            # 提取当前 batch 的 patch（fancy indexing 产生拷贝）
+            batch_patches = all_patches[indices].copy()
+            batch_tensor = torch.from_numpy(batch_patches)
+            batch_tensor = LandslideDataset._normalize_batch(
+                batch_tensor, self.global_min, self.global_max
+            )
+            batch_tensor = batch_tensor.to(self.device)
+            
+            with torch.no_grad():
+                outputs = self.model(batch_tensor, temperature=self.config.TEMPERATURE)
+                probs = outputs.cpu().numpy().ravel()
+            
+            # 将概率值散回概率图（仅填充研究区内像素）
+            for k, idx in enumerate(indices):
+                i = valid_i[start + k]
+                j = valid_j[start + k]
                 h_start = i * stride
                 w_start = j * stride
-                h_end = h_start + patch_size
-                w_end = w_start + patch_size
+                h_c = h_start + center_offset
+                w_c = w_start + center_offset
+                h_c_end = min(h_c + region_size, height)
+                w_c_end = min(w_c + region_size, width)
                 
-                patch = data[:, h_start:h_end, w_start:w_end]
-                if patch.shape == (channels, patch_size, patch_size):
-                    batch_patches.append(patch)
-                    
-                    h_center = h_start + (patch_size - region_size) // 2
-                    w_center = w_start + (patch_size - region_size) // 2
-                    batch_positions.append((
-                        max(0, h_center),
-                        min(height, h_center + region_size),
-                        max(0, w_center),
-                        min(width, w_center + region_size)
-                    ))
-                
-                # 达到批量大小时执行推理
-                if len(batch_patches) >= batch_size:
-                    self._process_batch(
-                        batch_patches, batch_positions,
-                        probability_map, count_map
-                    )
-                    pbar.update(len(batch_patches))
-                    batch_patches = []
-                    batch_positions = []
-        
-        # 处理剩余不足一批的patch
-        if batch_patches:
-            self._process_batch(
-                batch_patches, batch_positions,
-                probability_map, count_map
-            )
-            pbar.update(len(batch_patches))
+                mask = center_masks[idx][:h_c_end - h_c, :w_c_end - w_c]
+                prob_map_h = h_c_end - h_c
+                prob_map_w = w_c_end - w_c
+                prob_map[h_c:h_c_end, w_c:w_c_end][~mask[:prob_map_h, :prob_map_w]] += float(probs[k])
+                cnt_map[h_c:h_c_end, w_c:w_c_end][~mask[:prob_map_h, :prob_map_w]] += 1
+            
+            pbar.update(len(indices))
         
         pbar.close()
         
-        # 边缘填充
-        uncovered = count_map == 0
-        if uncovered.sum() > 0:
-            print(f"填充 {uncovered.sum()} 个未覆盖像素...")
-            self._fill_uncovered(probability_map, count_map, uncovered)
-        else:
-            print("所有像素均已覆盖，无需填充")
-        
-        count_map[count_map == 0] = 1
-        probability_map = probability_map / count_map
+        # 计算平均值（仅有效区域）
+        valid = count_map > 0
+        probability_map[valid] = probability_map[valid] / count_map[valid]
         
         self.probability_map = probability_map
         
         np.save(os.path.join(output_dir, 'probability_map.npy'), probability_map)
+        
+        valid_prob = probability_map[~np.isnan(probability_map)]
         print(f"\n概率图已保存到: {os.path.join(output_dir, 'probability_map.npy')}")
-        print(f"概率范围: [{probability_map.min():.4f}, {probability_map.max():.4f}]")
+        if len(valid_prob) > 0:
+            print(f"有效区域概率范围: [{valid_prob.min():.4f}, {valid_prob.max():.4f}]")
+        print(f"研究区外像素保持NaN，共 {np.isnan(probability_map).sum()} 个")
         
         return probability_map
     
     def _process_batch(self, patches, positions, prob_map, cnt_map):
-        """处理一批patch：归一化 + GPU推理 + 散回概率图"""
-        batch = np.stack(patches, axis=0).astype(np.float32)
+        """处理一批patch：归一化 + 推理 + 散回概率图（仅填充研究区内像素）"""
+        batch = np.stack(patches, axis=0)
         batch_tensor = torch.from_numpy(batch)
         batch_tensor = LandslideDataset._normalize_batch(
             batch_tensor, self.global_min, self.global_max
@@ -171,28 +217,10 @@ class SusceptibilityPredictor:
             probs = outputs.cpu().numpy().ravel()
         
         for k, prob in enumerate(probs):
-            h0, h1, w0, w1 = positions[k]
-            prob_map[h0:h1, w0:w1] += float(prob)
-            cnt_map[h0:h1, w0:w1] += 1
-    
-    def _fill_uncovered(self, prob_map, cnt_map, uncovered):
-        """填充未被滑动窗口覆盖的像素"""
-        try:
-            from scipy.ndimage import distance_transform_edt
-            _, indices = distance_transform_edt(uncovered, return_indices=True)
-            prob_map[uncovered] = prob_map[indices[0][uncovered], indices[1][uncovered]]
-            cnt_map[uncovered] = 1
-        except ImportError:
-            # 无scipy时的简单回退：向上/左传播最近的有效值
-            print("  (scipy未安装，使用简单最近邻填充)")
-            for i in range(1, prob_map.shape[0]):
-                for j in range(prob_map.shape[1]):
-                    if cnt_map[i, j] == 0:
-                        if cnt_map[i-1, j] > 0:
-                            prob_map[i, j] = prob_map[i-1, j]
-                        elif j > 0 and cnt_map[i, j-1] > 0:
-                            prob_map[i, j] = prob_map[i, j-1]
-                        cnt_map[i, j] = 1
+            h0, h1, w0, w1, mask = positions[k]
+            # 仅填充研究区内像素
+            prob_map[h0:h1, w0:w1][~mask] += float(prob)
+            cnt_map[h0:h1, w0:w1][~mask] += 1
     
     def export_geotiff(self, output_dir='predictions', filename='susceptibility_5levels.tif'):
         """导出带地理参考的5级易发性图GeoTIFF，可直接用于GeoServer发布"""
@@ -222,8 +250,10 @@ class SusceptibilityPredictor:
             print("警告: 无法解析地理参考信息，导出为纯GeoTIFF")
             return None
         
-        # 转为5级等级图
+        # 转为5级等级图（NaN→255 NoData）
         levels = self._probability_to_levels(self.probability_map)
+        levels = levels.astype(np.float32)
+        levels[levels < 0] = 255  # NaN区域 → NoData
         levels = levels.astype(np.uint8)
         
         output_path = os.path.join(output_dir, filename)
@@ -255,11 +285,17 @@ class SusceptibilityPredictor:
         return output_path
     
     def _probability_to_levels(self, probability_map):
-        """将概率图转为5级等级（quantile分位数）"""
-        data_flat = probability_map.flatten()
-        bins = np.quantile(data_flat, [0.2, 0.4, 0.6, 0.8])
-        levels = np.digitize(probability_map, bins)
-        return levels.astype(np.int8)
+        """将概率图转为5级等级（quantile分位数，排除NaN）"""
+        valid_data = probability_map[~np.isnan(probability_map)]
+        if len(valid_data) == 0:
+            levels = np.full(probability_map.shape, -1, dtype=np.int8)
+            return levels
+        
+        bins = np.quantile(valid_data, [0.2, 0.4, 0.6, 0.8])
+        levels = np.full(probability_map.shape, -1, dtype=np.int8)
+        valid_mask = ~np.isnan(probability_map)
+        levels[valid_mask] = np.digitize(probability_map[valid_mask], bins)
+        return levels
     
     def generate_susceptibility_output(self, output_dir='predictions', method='quantile'):
         """生成易发性分布图和统计信息"""
@@ -305,7 +341,7 @@ def main():
     parser.add_argument('--temperature', type=float, default=None,
                         help='温度系数，T>1拉开概率分布。默认使用config中的值(3.0)')
     parser.add_argument('--batch_size', type=int, default=None,
-                        help='预测批量大小，默认GPU=64/CPU=16')
+                        help='预测批量大小，默认GPU=128/CPU=32')
     parser.add_argument('--export_geotiff', action='store_true',
                         help='导出带地理参考的GeoTIFF，供GeoServer发布')
     

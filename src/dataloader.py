@@ -36,6 +36,8 @@ class LandslideDataset(Dataset):
         features = np.load(os.path.join(self.data_path, feat_file))
         label = np.load(os.path.join(self.data_path, label_file))
         
+        # 替换NaN为0，避免NaN在模型中传播导致loss=NaN、梯度无效
+        features = np.nan_to_num(features, nan=0.0, copy=False)
         features = torch.from_numpy(features).float()
         label = torch.from_numpy(label).long().squeeze()
         
@@ -118,10 +120,13 @@ class LandslideDataset(Dataset):
             features = np.load(os.path.join(data_path, feat_file))
             for c in range(num_channels):
                 ch_data = features[c]
-                if ch_data.min() < global_min[c]:
-                    global_min[c] = ch_data.min()
-                if ch_data.max() > global_max[c]:
-                    global_max[c] = ch_data.max()
+                # 使用 nanmin/nanmax 避免 NaN 污染全局统计量
+                ch_min = np.nanmin(ch_data)
+                ch_max = np.nanmax(ch_data)
+                if ch_min < global_min[c]:
+                    global_min[c] = ch_min
+                if ch_max > global_max[c]:
+                    global_max[c] = ch_max
 
         return global_min, global_max
 
