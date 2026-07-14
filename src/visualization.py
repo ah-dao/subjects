@@ -35,11 +35,11 @@ _HAS_CHINESE = _CHINESE_FONT is not None
 class LandslideVisualizer:
     def __init__(self):
         self.levels = {
-            0: {'name': '低易发性', 'name_en': 'Very Low'},
-            1: {'name': '较低易发性', 'name_en': 'Low'},
-            2: {'name': '中易发性', 'name_en': 'Moderate'},
-            3: {'name': '较高易发性', 'name_en': 'High'},
-            4: {'name': '高易发性', 'name_en': 'Very High'}
+            0: {'name': '低易发性', 'name_en': 'Very Low', 'color': '#2E8B57'},
+            1: {'name': '较低易发性', 'name_en': 'Low', 'color': '#9ACD32'},
+            2: {'name': '中易发性', 'name_en': 'Moderate', 'color': '#FFD700'},
+            3: {'name': '较高易发性', 'name_en': 'High', 'color': '#FF8C00'},
+            4: {'name': '高易发性', 'name_en': 'Very High', 'color': '#DC143C'}
         }
         
         self._use_chinese = _HAS_CHINESE
