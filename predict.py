@@ -141,8 +141,8 @@ class SusceptibilityPredictor:
         valid_i = valid_indices // w_steps
         valid_j = valid_indices % w_steps
         
-        # 概率图初始化为NaN（研究区外保持NaN）
-        probability_map = np.full((height, width), np.nan, dtype=np.float32)
+        # 概率图初始化为0（不能用NaN，否则 NaN + prob = NaN）
+        probability_map = np.zeros((height, width), dtype=np.float32)
         count_map = np.zeros((height, width), dtype=np.int32)
         
         # 单层批量循环处理
@@ -190,6 +190,8 @@ class SusceptibilityPredictor:
         # 计算平均值（仅有效区域）
         valid = count_map > 0
         probability_map[valid] = probability_map[valid] / count_map[valid]
+        # 未覆盖的像素（研究区外）恢复为NaN
+        probability_map[~valid] = np.nan
         
         self.probability_map = probability_map
         
