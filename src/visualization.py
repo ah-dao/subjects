@@ -5,28 +5,51 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap, BoundaryNorm
 import matplotlib.patches as mpatches
 
-# 配置中文字体（跨平台兼容）
+# 配置中文字体（跨平台兼容，含 Colab 自动下载）
 import matplotlib.font_manager as fm
 import os
 
 def _setup_chinese_font():
-    """配置中文字体，兼容 Windows/macOS/Linux"""
-    candidates = [
-        ('SimHei', 'Microsoft YaHei', 'Noto Sans CJK SC', 'WenQuanYi Micro Hei',
-         'Source Han Sans CN', 'PingFang SC', 'Hiragino Sans GB', 'DejaVu Sans'),
-    ]
-    for chain in candidates:
-        for name in chain:
-            try:
-                if any(f.name == name for f in fm.fontManager.ttflist):
-                    plt.rcParams['font.sans-serif'] = [name] + list(plt.rcParams['font.sans-serif'])
-                    plt.rcParams['axes.unicode_minus'] = False
-                    return name
-            except Exception:
-                continue
-    # 兜底：使用系统中文字体
-    plt.rcParams['font.sans-serif'] = ['Microsoft YaHei', 'SimHei', 'DejaVu Sans']
-    plt.rcParams['axes.unicode_minus'] = False
+    """配置中文字体，兼容 Windows/macOS/Linux/Colab"""
+    # 1. 检查系统已有中文字体
+    system_fonts = ['Noto Sans CJK SC', 'SimHei', 'Microsoft YaHei',
+                    'WenQuanYi Micro Hei', 'PingFang SC', 'Hiragino Sans GB']
+    for name in system_fonts:
+        try:
+            if any(f.name == name for f in fm.fontManager.ttflist):
+                plt.rcParams['font.sans-serif'] = [name, 'DejaVu Sans']
+                plt.rcParams['axes.unicode_minus'] = False
+                print(f"  中文字体: {name} (已安装)")
+                return name
+        except Exception:
+            continue
+
+    # 2. 未找到 → 自动下载 Noto Sans CJK SC 到用户目录
+    font_dir = os.path.join(os.path.expanduser('~'), '.fonts')
+    font_path = os.path.join(font_dir, 'NotoSansCJKsc-Regular.otf')
+
+    if not os.path.exists(font_path):
+        print("  未找到中文字体，正在自动下载 Noto Sans CJK SC ...")
+        os.makedirs(font_dir, exist_ok=True)
+        url = ('https://github.com/googlefonts/noto-cjk/raw/main/'
+               'Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf')
+        try:
+            import urllib.request
+            urllib.request.urlretrieve(url, font_path)
+            print("  字体下载完成")
+        except Exception as e:
+            print(f"  字体下载失败: {e}")
+            return None
+
+    # 3. 注册下载的字体
+    if os.path.exists(font_path):
+        fm.fontManager.addfont(font_path)
+        fm._load_fontmanager(try_read_cache=False)
+        plt.rcParams['font.sans-serif'] = ['Noto Sans CJK SC', 'DejaVu Sans']
+        plt.rcParams['axes.unicode_minus'] = False
+        print("  中文字体: Noto Sans CJK SC (自动下载)")
+        return 'Noto Sans CJK SC'
+
     return None
 
 _CHINESE_FONT = _setup_chinese_font()
