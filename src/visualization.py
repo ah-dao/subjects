@@ -112,7 +112,7 @@ class LandslideVisualizer:
         """
         绘制滑坡易发性分布图（NaN区域显示为白色）
         """
-        fig, ax = plt.subplots(figsize=(12, 10))
+        fig, ax = plt.subplots(figsize=(18, 10))
         
         # NaN区域显示为白色
         cmap = self.cmap.copy()
@@ -152,7 +152,7 @@ class LandslideVisualizer:
         """
         绘制概率分布图（NaN区域显示为白色）
         """
-        fig, ax = plt.subplots(figsize=(12, 10))
+        fig, ax = plt.subplots(figsize=(18, 10))
         
         cmap = plt.cm.RdYlGn_r
         cmap.set_bad(color='white')

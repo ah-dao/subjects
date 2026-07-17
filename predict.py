@@ -172,16 +172,33 @@ class SusceptibilityPredictor:
                 j = valid_j[start + k]
                 h_start = i * stride
                 w_start = j * stride
-                h_c = h_start + center_offset
-                w_c = w_start + center_offset
-                h_c_end = min(h_c + region_size, height)
-                w_c_end = min(w_c + region_size, width)
                 
-                mask = center_masks[idx][:h_c_end - h_c, :w_c_end - w_c]
-                prob_map_h = h_c_end - h_c
-                prob_map_w = w_c_end - w_c
-                probability_map[h_c:h_c_end, w_c:w_c_end][~mask[:prob_map_h, :prob_map_w]] += float(probs[k])
-                count_map[h_c:h_c_end, w_c:w_c_end][~mask[:prob_map_h, :prob_map_w]] += 1
+                # 边缘 patch 扩展到图像边界，消除四周边界间隙
+                # 内部 patch 仍只写中心 region_size × region_size 区域
+                if i == 0:
+                    h_c = 0
+                else:
+                    h_c = h_start + center_offset
+                
+                if j == 0:
+                    w_c = 0
+                else:
+                    w_c = w_start + center_offset
+                
+                if i == h_steps - 1:
+                    h_c_end = height
+                else:
+                    h_c_end = h_start + center_offset + region_size
+                
+                if j == w_steps - 1:
+                    w_c_end = width
+                else:
+                    w_c_end = w_start + center_offset + region_size
+                
+                # 直接从 nan_mask 提取该区域的 mask
+                region_mask = nan_mask[h_c:h_c_end, w_c:w_c_end]
+                probability_map[h_c:h_c_end, w_c:w_c_end][~region_mask] += float(probs[k])
+                count_map[h_c:h_c_end, w_c:w_c_end][~region_mask] += 1
             
             pbar.update(len(indices))
         

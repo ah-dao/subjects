@@ -14,6 +14,10 @@ class LandslideDataset(Dataset):
         self.samples = self._load_samples()
         
     def _load_samples(self):
+        """
+        加载样本对:
+        从训练集中加载特征和标签文件对
+        """
         samples = []
         files = os.listdir(self.data_path)
         feature_files = [f for f in files if f.endswith('_features.npy')]
@@ -28,9 +32,20 @@ class LandslideDataset(Dataset):
         return samples
     
     def __len__(self):
+        """
+        返回数据集的样本数量
+        DataLoader 内部用这个值来确定一个 epoch 有多少个 batch。
+        """
         return len(self.samples)
     
     def __getitem__(self, idx):
+        """
+        返回数据集的第 idx 个样本
+        DataLoader 会根据此方法返回的样本来创建数据加载器
+        DataLoader 内部等价于:
+        for idx in batch_indices:
+            features, label = dataset[idx]  # 自动调用 __getitem__
+        """
         feat_file, label_file = self.samples[idx]
         
         features = np.load(os.path.join(self.data_path, feat_file))
@@ -40,10 +55,26 @@ class LandslideDataset(Dataset):
         features = np.nan_to_num(features, nan=0.0, copy=False)
         features = torch.from_numpy(features).float()
         label = torch.from_numpy(label).long().squeeze()
+        # .long() 转换为长整数int64，避免梯度无效
+        # .squeeze() 将标签转换为一维量
         
         if self.normalize:
             features = self._normalize_batch(features, self.global_min, self.global_max)
         
+        # PyTorch 标准的 数据增强钩子，用于对特征进行随机变换
+        """
+        from torchvision import transforms
+        # 定义数据增强
+        transform = transforms.Compose([
+            transforms.RandomHorizontalFlip(p=0.5),   # 50% 概率水平翻转
+            transforms.RandomVerticalFlip(p=0.3),     # 30% 概率垂直翻转
+            # transforms.RandomRotation(15),          # 随机旋转 ±15°（需要适配 5 通道）
+        ])
+
+        # 传入 Dataset（只对训练集做增强，验证集不做）
+        train_dataset = LandslideDataset('debug_data/train', transform=transform)
+        val_dataset   = LandslideDataset('debug_data/val')
+        """
         if self.transform:
             features = self.transform(features)
         
