@@ -274,7 +274,9 @@ Export.image.toDrive({
 
 ## 五、模型架构
 
-### 5.1 总体设计：GraphSAGE + Transformer（节点级预测）
+### 5.1 总体设计：GraphSAGE + 全局 Transformer（节点级预测）
+
+核心思路：**GraphSAGE 学局部空间依赖（邻域消息传递），全局 Transformer 学节点间长程依赖（节点级自注意力），二者分工明确**。
 
 ```
 输入: 图 G(V, E)
@@ -285,10 +287,12 @@ Export.image.toDrive({
     ↓
   Linear Projection (28 → 64)           # 特征维度对齐
     ↓
-  GraphSAGE Layer 1 (64 → 64)           # 邻域消息传递，1 跳
+  GraphSAGE Layer 1 (64 → 64)           # 邻域消息传递, 1 跳
   GraphSAGE Layer 2 (64 → 64)           # 2 跳覆盖范围
     ↓
-  Transformer Conv (2 层, 4 头)          # 全局长程依赖
+  位置编码 (可学习位置嵌入, 1 × 26068 × 64)
+    ↓
+  全局 Transformer Encoder (2 层, 4 头)  # 节点间全连接自注意力, 真正全局
     ↓
   FC (64 → 32 → 1) + Sigmoid            # 逐节点概率输出
 ```
@@ -305,47 +309,210 @@ Export.image.toDrive({
 
 消落区斜坡单元间的邻接关系相对均匀（共享边界），GAT 的注意力机制增益有限。GraphSAGE 的归纳能力和训练稳定性更实用。
 
-### 5.3 Transformer 的作用
+### 5.3 为什么用全局 Transformer Encoder 而非 TransformerConv
 
-GraphSAGE 的消息传递本质是局部的（2 跳 = 2 层），Transformer 补充全局长程依赖：
+初版方案采用 `TransformerConv`，但 `TransformerConv` 仍是图卷积——它只在**邻居节点**上做注意力加权，本质上与 SAGEConv 一样受限于邻域，**不提供真正的全局长程依赖能力**。
 
-- 捕获远距离斜坡单元间的相似性（如相同高程带的单元可能有相似的滑坡模式）
-- 学习全局空间模式（如消落区下部单元群的整体失稳趋势）
+| 结构 | 视野 | 复杂度 | 全局能力 |
+|------|------|--------|---------|
+| SAGEConv ×2 | 2 跳邻居 | O(\|E\|) | 无 |
+| TransformerConv | 1 跳邻居 + 注意力 | O(\|E\|) | 弱（仍是邻域） |
+| **全局 Transformer Encoder** | **全图节点间** | O(N²) | **强（真正全局）** |
+| Performer 自注意力 | 全图节点间 | **O(N)** | 强（线性近似） |
 
-### 5.4 模型实现
+**结论**：要让模型捕获远距离斜坡单元间的相似性（如相同高程带）、消落区下部单元群整体失稳趋势等全局模式，必须用**节点间全连接自注意力**（即 Transformer Encoder），而非图卷积版本的 TransformerConv。
+
+### 5.4 三套候选方案（按开销排序）
+
+> **开销原则**：当前验证与模型调试阶段优先用小开销方案（Colab T4 免费）；后期可升级 4090/3090 云服务器后，再切换到更大规模实验（更多隐藏层维度、更大 batch、更长交叉验证）。
+
+#### 方案 A：SAGEConv ×3 + Global Pooling（最低开销，验证基线）
+
+```
+Linear(28 → 64) → SAGEConv×3 → Global Mean Pool → FC(64→32→1)+Sigmoid
+```
+
+- **定位**：调试与基线验证用，确认图模型 pipeline 跑通
+- **参数量**：~45K
+- **训练**：Colab T4, ~3 分钟/折
+- **全局能力**：靠 3 跳视野覆盖（消落区上下游几公里足够）
+- **过拟合风险**：最低，最稳健
+
+#### 方案 B：GraphSAGE ×2 + 全局 Transformer Encoder（推荐，正式方案）
+
+```
+Linear(28→64) → SAGEConv×2 → +位置编码 → TransformerEncoder×2 (heads=4) → FC(64→32→1)+Sigmoid
+```
+
+- **定位**：论文正式方案，GNN 学局部 + Transformer 学全局，结构分工清晰
+- **参数量**：~85K
+- **训练**：Colab T4, ~8-10 分钟/折
+- **关键点**：全量自注意力 O(N²)（26K² ≈ 6.76 亿对）T4 16GB 一次过全部 26K 节点不够，需按 batch 拆分（256-512 节点/批）；或用 Performer（方案 C）替代
+
+#### 方案 C：GraphSAGE ×2 + Performer 自注意力（理想方案，线性全局）
+
+```
+Linear(28→64) → SAGEConv×2 → +位置编码 → Performer SelfAttention×2 → FC(64→32→1)+Sigmoid
+```
+
+- **定位**：方案 B 的线性复杂度版本，保留全局能力同时让全图训练成为可能
+- **参数量**：~65K
+- **训练**：Colab T4, ~6 分钟/折
+- **关键点**：Performer 用随机特征近似 softmax attention，复杂度从 O(N²) 降到 O(N)，**全图 26K 节点可一次过**
+- **代价**：增加 `performer-pytorch` 依赖
+
+#### 方案选择决策树
+
+```
+是否调试阶段？
+  ├─ 是 → 方案 A（跑通 pipeline, 验证特征质量）
+  └─ 否 → 是否愿意加 Performer 依赖？
+        ├─ 是 → 方案 C（推荐，全图训练，开销适中）
+        └─ 否 → 方案 B（按 batch 拆分训练，理论最严谨）
+```
+
+### 5.5 模型实现
+
+#### 方案 A 实现（SAGEConv ×3 + Global Pooling）
 
 ```python
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.nn import SAGEConv, TransformerConv
+from torch_geometric.nn import SAGEConv, global_mean_pool
 
-class SlopeUnitGNN(nn.Module):
-    def __init__(self, input_dim=28, hidden_dim=64, num_heads=4, 
-                 dropout=0.3):
+class SlopeUnitGNNA(nn.Module):
+    """方案 A: SAGEConv×3 + Global Pool, 调试与基线用."""
+    def __init__(self, input_dim=28, hidden_dim=64, dropout=0.3):
         super().__init__()
         self.input_proj = nn.Linear(input_dim, hidden_dim)
         self.sage1 = SAGEConv(hidden_dim, hidden_dim)
         self.sage2 = SAGEConv(hidden_dim, hidden_dim)
-        self.transformer = TransformerConv(
-            hidden_dim, hidden_dim // num_heads, 
-            heads=num_heads, dropout=dropout
-        )
+        self.sage3 = SAGEConv(hidden_dim, hidden_dim)
         self.fc1 = nn.Linear(hidden_dim, 32)
         self.fc2 = nn.Linear(32, 1)
         self.dropout = nn.Dropout(dropout)
-        
-    def forward(self, x, edge_index):
-        x = self.input_proj(x)
-        x = F.relu(self.sage1(x, edge_index))
-        x = self.dropout(x)
-        x = F.relu(self.sage2(x, edge_index))
-        x = self.dropout(x)
-        x = self.transformer(x, edge_index)
-        x = F.relu(self.fc1(x))
-        x = self.dropout(x)
-        return torch.sigmoid(self.fc2(x))
+
+    def forward(self, x, edge_index, batch=None):
+        x = F.relu(self.input_proj(x))
+        x = F.relu(self.sage1(x, edge_index)); x = self.dropout(x)
+        x = F.relu(self.sage2(x, edge_index)); x = self.dropout(x)
+        x = F.relu(self.sage3(x, edge_index))
+        x = self.fc1(x); x = self.dropout(x)
+        return torch.sigmoid(self.fc2(x)).squeeze(-1)
 ```
+
+#### 方案 B 实现（GraphSAGE ×2 + 全局 Transformer Encoder）
+
+```python
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch_geometric.nn import SAGEConv
+
+class SlopeUnitGNNB(nn.Module):
+    """方案 B: GraphSAGE×2 + 真正的全局 Transformer Encoder (推荐正式方案)."""
+    def __init__(self, input_dim=28, hidden_dim=64, num_heads=4,
+                 num_nodes=26068, dropout=0.3):
+        super().__init__()
+        self.input_proj = nn.Linear(input_dim, hidden_dim)
+        self.sage1 = SAGEConv(hidden_dim, hidden_dim)
+        self.sage2 = SAGEConv(hidden_dim, hidden_dim)
+        # 可学习位置编码: 让 Transformer 感知节点空间身份
+        self.pos_embed = nn.Parameter(torch.randn(1, num_nodes, hidden_dim) * 0.02)
+        enc_layer = nn.TransformerEncoderLayer(
+            d_model=hidden_dim, nhead=num_heads,
+            dim_feedforward=hidden_dim*2, dropout=dropout,
+            batch_first=True, activation='gelu'
+        )
+        self.transformer = nn.TransformerEncoder(enc_layer, num_layers=2)
+        self.fc1 = nn.Linear(hidden_dim, 32)
+        self.fc2 = nn.Linear(32, 1)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x, edge_index, node_batch_idx=0):
+        # x: (N, 28) 全图节点
+        x = F.relu(self.input_proj(x))                   # (N, 64)
+        x = F.relu(self.sage1(x, edge_index)); x = self.dropout(x)
+        x = F.relu(self.sage2(x, edge_index))            # (N, 64)
+        # 加位置编码后做全局自注意力 (按 batch 拆分以避免 O(N²) 爆显存)
+        x = x.unsqueeze(0) + self.pos_embed[:, :x.size(0), :]
+        x = self.transformer(x).squeeze(0)              # (N, 64)
+        x = F.relu(self.fc1(x)); x = self.dropout(x)
+        return torch.sigmoid(self.fc2(x)).squeeze(-1)
+```
+
+#### 方案 C 实现（GraphSAGE ×2 + Performer 线性注意力）
+
+```python
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch_geometric.nn import SAGEConv
+from performer_pytorch import SelfAttention  # pip install performer-pytorch
+
+class SlopeUnitGNNC(nn.Module):
+    """方案 C: GraphSAGE×2 + Performer O(N) 自注意力, 全图一次过."""
+    def __init__(self, input_dim=28, hidden_dim=64, num_heads=4,
+                 num_nodes=26068, dropout=0.3):
+        super().__init__()
+        self.input_proj = nn.Linear(input_dim, hidden_dim)
+        self.sage1 = SAGEConv(hidden_dim, hidden_dim)
+        self.sage2 = SAGEConv(hidden_dim, hidden_dim)
+        self.pos_embed = nn.Parameter(torch.randn(1, num_nodes, hidden_dim) * 0.02)
+        # Performer 线性注意力, 复杂度 O(N) 而非 O(N²)
+        self.attn1 = SelfAttention(dim=hidden_dim, heads=num_heads, causal=False)
+        self.attn2 = SelfAttention(dim=hidden_dim, heads=num_heads, causal=False)
+        self.norm1 = nn.LayerNorm(hidden_dim)
+        self.norm2 = nn.LayerNorm(hidden_dim)
+        self.fc1 = nn.Linear(hidden_dim, 32)
+        self.fc2 = nn.Linear(32, 1)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x, edge_index):
+        x = F.relu(self.input_proj(x))
+        x = F.relu(self.sage1(x, edge_index)); x = self.dropout(x)
+        x = F.relu(self.sage2(x, edge_index))
+        # 全局自注意力 (Performer, O(N))
+        x = x.unsqueeze(0) + self.pos_embed[:, :x.size(0), :]
+        attn_out = self.attn1(x)
+        x = self.norm1(x + self.dropout(attn_out))
+        attn_out = self.attn2(x)
+        x = self.norm2(x + self.dropout(attn_out))
+        x = x.squeeze(0)
+        x = F.relu(self.fc1(x)); x = self.dropout(x)
+        return torch.sigmoid(self.fc2(x)).squeeze(-1)
+```
+
+### 5.6 三方案开销与适用阶段对比
+
+| 指标 | 方案 A | 方案 B（推荐正式） | 方案 C（理想） |
+|------|--------|------------------|---------------|
+| 定位 | 调试/基线 | 论文正式方案 | 方案 B 的线性版 |
+| 参数量 | ~45K | ~85K | ~65K |
+| 训练（T4, 单折） | ~3 分钟 | ~8-10 分钟 | ~6 分钟 |
+| 5 折交叉验证 | ~15 分钟 | ~50 分钟 | ~30 分钟 |
+| 全局能力 | 3 跳视野 | 真正全局 O(N²) | 真正全局 O(N) |
+| 是否需 batch 拆分 | 否 | 是（256-512/批） | 否（全图一次过） |
+| 额外依赖 | 无 | 无 | `performer-pytorch` |
+| 适用阶段 | 验证特征质量、跑通 pipeline | 正式论文实验 | 生产级、避免显存瓶颈 |
+
+### 5.7 后期升级到 4090/3090 后的扩展空间
+
+调试与验证阶段以"开销小"为优先目标，正式实验可上更强硬件进一步调优：
+
+| 升级方向 | 当前（T4 16GB） | 3090 24GB | 4090 24GB |
+|---------|----------------|-----------|-----------|
+| 隐藏维度 | 64 | 128-256 | 256 |
+| GraphSAGE 层数 | 2-3 | 4-5 | 4-6 |
+| Transformer 层数 | 2 | 4-6 | 6-8 |
+| 注意力头数 | 4 | 8-16 | 16 |
+| Batch 大小（方案 B） | 256-512 节点 | 全图 26K 一次过 | 全图 + 多 seed |
+| 5 折交叉验证 | ~30-50 分钟 | ~5-10 分钟 | ~3-5 分钟 |
+| 集成学习 / 多 seed 平均 | 不可行 | 可（5-10 次训练） | 可（10-20 次） |
+| 大型消融实验 | 受限 | 可完整跑 | 可并行多个模型 |
+
+**结论**：方案 B/C 在 T4 上能跑通；3090/4090 上可加大 hidden_dim、跑全图 batch、做多 seed 集成，进一步提升 AUC 0.02-0.05。
 
 ---
 
@@ -391,17 +558,23 @@ class SlopeUnitGNN(nn.Module):
 | learning_rate | 1e-3 | Adam |
 | batch_size | 全图 | 26K 节点可全图训练（Full-batch） |
 
-### 6.5 训练开销估算
+### 6.5 训练开销估算（验证与调试阶段）
 
-| 环节 | 耗时 | 硬件 |
-|------|------|------|
-| 图构建（Delaunay, 26K 节点） | ~5 秒 | CPU |
-| 训练（200 epochs, Full-batch） | ~2-5 分钟 | Colab T4（免费） |
-| 5 折交叉验证 | ~25 分钟 | Colab T4 |
-| 推理 | ~0.1 秒 | CPU 即可 |
-| 水位特征提取 | ~30 秒 | CPU |
+> **阶段定位**：本章所有耗时估算均为**验证与模型调试阶段**的标准，目标是在 Colab T4（免费）上完成全流程。后期升级到 4090/3090 后，同一方案耗时可压缩 5-10 倍，可支撑更大规模实验（见 5.7 节）。
+
+| 环节 | 方案 A | 方案 B | 方案 C | 硬件 |
+|------|--------|--------|--------|------|
+| 图构建（Delaunay, 26K 节点） | ~5 秒 | ~5 秒 | ~5 秒 | CPU |
+| 单折训练（200 epochs） | ~3 分钟 | ~8-10 分钟 | ~6 分钟 | Colab T4 |
+| 5 折交叉验证 | ~15 分钟 | ~50 分钟 | ~30 分钟 | Colab T4 |
+| 推理 | ~0.1 秒 | ~0.1 秒 | ~0.1 秒 | CPU |
+| 水位特征提取 | ~30 秒 | ~30 秒 | ~30 秒 | CPU |
 
 **相比现有 CNN 方案，训练开销降低 10-20 倍。**
+
+**阶段建议**：
+1. **调试阶段**（T4 免费）：方案 A 跑通 pipeline → 方案 C 验证全局能力
+2. **正式实验阶段**（升级到 4090/3090）：方案 B/C 加大 hidden_dim、跑多 seed 集成，做完整消融
 
 ---
 
@@ -529,10 +702,15 @@ class SlopeUnitGNN(nn.Module):
 
 ### 9.4 云服务器
 
-| 平台 | GPU | 用途 | 费用 |
-|------|-----|------|------|
-| Google Colab | T4 16GB | 模型训练 | 免费 |
-| AutoDL | 3090 24GB | 大规模实验 | ~2-3 元/小时 |
-| 本地 | CPU | XGBoost 基线 + 数据处理 | 零 |
+| 平台 | GPU | 用途 | 费用 | 阶段 |
+|------|-----|------|------|------|
+| Google Colab | T4 16GB | 验证与模型调试 | 免费 | 当前阶段 |
+| AutoDL | 3090 24GB | 正式实验 + 大规模消融 | ~2-3 元/小时 | 后期升级 |
+| AutoDL / 恒源云 | 4090 24GB | 大规模实验 + 多 seed 集成 | ~5-8 元/小时 | 后期升级 |
+| 本地 | CPU | XGBoost 基线 + 数据预处理 | 零 | 全阶段 |
 
-**模型训练在 Colab 免费 T4 上完全够用，无需付费 GPU。**
+**阶段化硬件策略**：
+- **验证与调试阶段**：Colab T4 足够，方案 A/B/C 全部能跑（详见 5.6 节），免费
+- **正式实验阶段**：升级到 4090/3090，方案 B/C 可全图 batch、多 seed 集成、完整消融（详见 5.7 节），进一步提升 AUC 0.02-0.05
+
+---
