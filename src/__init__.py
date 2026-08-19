@@ -1,28 +1,5 @@
-from .config import Config
-from .debug_config import DebugConfig
-from .layers import CNNBlock
-from .model import LandslideModel
-from .model_segmentation import LandslideSegmentationModel, LandslideProbabilityModel
-from .cbam import CBAM
-from .transformer import GeoPositionalEncoding, TransformerEncoder
-from .spp import SPPModule
-from .dataloader import LandslideDataset, get_dataloader
-from .train import train_model
-from .test import test_model
+"""斜坡单元滑坡易发性分析包（GraphSAGE + Transformer 方案）。
 
-__all__ = [
-    'Config',
-    'DebugConfig',
-    'CNNBlock',
-    'LandslideModel',
-    'LandslideSegmentationModel',
-    'LandslideProbabilityModel',
-    'CBAM',
-    'GeoPositionalEncoding',
-    'TransformerEncoder',
-    'SPPModule',
-    'LandslideDataset',
-    'get_dataloader',
-    'train_model',
-    'test_model'
-]
+注意：本包 __init__ 保持最小化，不导入 torch，方便 tills/ 下的数据准备
+脚本仅通过 `from src.config import ...` 获取路径配置。
+"""

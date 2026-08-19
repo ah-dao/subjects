@@ -1,30 +1,35 @@
-# 滑坡易发性模型项目说明
+# 滑坡易发性模型项目说明（斜坡单元方案）
 
 ## 1. 项目概述
 
-本项目实现了一个基于深度学习的**滑坡易发性评估**系统，采用 **CNN + CBAM注意力 + Transformer + SPP空间金字塔池化** 的混合架构。模型将多个滑坡影响因子叠加为多通道图像，对每个区域输出滑坡概率（0~1），最终划分为 **5 级易发性分布图**（高、较高、中、较低、低）。
+本项目实现三峡库区消落带**滑坡易发性评估**，采用 **斜坡单元（Slope Unit）+ GraphSAGE + Transformer** 方案：以地形自然分割的斜坡单元为分析单位，为每个单元构建 **22 维特征**，用图神经网络建模单元间空间关系，输出每个单元的滑坡概率（0~1），最终划分为 **5 级易发性**并回填 shapefile 生成矢量易发性图。
+
+**研究设计要点（本版本的关键决策）**：
+
+1. **研究期 2003-2021**（三峡水库 2003 年 6 月开始蓄水）：剔除"只在蓄水前（2000-2002）发生滑坡、研究期未再发"的单元（既不当正也不当负），保留研究期内滑过坡的单元（含蓄水前首次、研究期复发的单元）。
+2. **特征去泄漏**：经诊断发现"按事件日期截断"的时序特征会因正/负样本窗口长度与选取年份不同而**编码标签**（基线 AUC 虚高到 1.0 的根源）。现统一采用**研究期全窗口**环境协变量（易发性建模的标准口径），水位改用"高程 × 库水位"的**淹没交互特征**，并删除与标签同源的复发特征。
+3. **模型**：GraphSAGE 学局部空间依赖 + 全局 Transformer 学长程依赖（方案 B，推荐）。
 
 ### 1.1 技术栈
 
 | 组件 | 技术选型 |
 |------|----------|
-| 深度学习框架 | PyTorch |
-| 遥感数据源 | Google Earth Engine (GEE) |
-| 数据格式 | 多波段 GeoTIFF |
-| 可视化 | Matplotlib |
-| 运行环境 | 本地 / Google Colab / 云服务器 |
+| 深度学习框架 | PyTorch（SAGEConv 自实现，无需 torch-geometric） |
+| 图模型 | SAGEConv（均值聚合）+ 全局 Transformer Encoder（方案 B）/ Performer（方案 C） |
+| 基线模型 | XGBoost |
+| 遥感数据源 | Google Earth Engine（Landsat NDVI、CHIRPS 降雨，GEE 端按单元直接算统计）、SRTM（地形） |
+| 空间数据处理 | GeoPandas、Shapely、Rasterio、Rasterstats |
+| 出图 | QGIS 矢量分级填色（RdYlGn_r） |
 
-### 1.2 输入数据
+### 1.2 数据概况（研究期 2003-2021）
 
-使用 **5 个滑坡影响因子**（GEE 自动合并为一个多波段 GeoTIFF）：
-
-| 波段 | 因子名称 | 数据来源 |
-|------|----------|----------|
-| Band 1 | elevation (高程) | USGS/SRTMGL1_003 |
-| Band 2 | slope (坡度) | ee.Terrain.slope() |
-| Band 3 | aspect (坡向) | ee.Terrain.aspect() |
-| Band 4 | TRI (地形粗糙度指数) | ee.Algorithms.Terrain() |
-| Band 5 | curvature (曲率) | ee.Algorithms.Terrain() |
+| 指标 | 数值 |
+|------|------|
+| 全量斜坡单元 | 26068（修复后） |
+| **研究单元（研究期建模人群）** | **25884** |
+| 研究期正样本（有滑坡） | **662**（846 − 184 仅蓄水前滑坡） |
+| 负样本 | 25222 |
+| 剔除单元 | 184（首次滑坡 2000-2002 且研究期未再发） |
 
 ---
 
@@ -32,528 +37,235 @@
 
 ```
 subjects/
-├── src/                              # 核心源代码
-│   ├── __init__.py                   # 包初始化，导出所有核心类
-│   ├── model.py                      # 分类模型 LandslideModel (2类softmax输出)
-│   ├── model_segmentation.py         # 概率模型 LandslideProbabilityModel (sigmoid单值输出) + 分割模型
-│   ├── layers.py                     # 公共神经网络层 (CNNBlock)
-│   ├── cbam.py                       # CBAM 注意力模块 (通道+空间注意力)
-│   ├── transformer.py                # Transformer编码器 + 可学习地理位置编码
-│   ├── spp.py                        # SPP 空间金字塔池化 (支持动态级别)
-│   ├── dataloader.py                 # 数据加载器 (支持min-max归一化)
-│   ├── visualization.py              # 易发性可视化工具 (5级分级/统计)
-│   ├── config.py                     # 正式训练配置 (18通道, 50轮)
-│   └── debug_config.py               # 调试配置 (5通道, 3轮, 低资源)
+├── main.py                        # 一键流程编排（data → graph → baseline → train → predict）
+├── baseline_xgb.py                # XGBoost 基线（5 折空间 CV + 特征重要性）
+├── train_gnn.py                   # GraphSAGE + Transformer 训练（K 折 CV + 最终模型）
+├── predict_gnn.py                 # 全图推理 → 5 级易发性 → 回填 shapefile
+├── requirements.txt
 │
-├── main.py                           # 正式训练入口
-├── debug_train.py                    # 调试训练入口 (推荐入门)
-├── predict.py                        # 生成易发性分布图
-├── load_geotiff.py                   # GeoTIFF加载 + 切片提取 + 平衡数据集
-├── gee_export.js                     # GEE导出脚本 (JavaScript)
-├── prepdata.py                       # 数据准备指引
-├── requirements.txt                  # Python依赖
+├── src/                           # 核心模块
+│   ├── config.py                  # 路径 + 22 维特征定义 + 超参数（纯 Python）
+│   ├── model.py                   # SlopeUnitGNN A/B/C + 自带 SAGEConv
+│   ├── dataset.py                 # 特征表/图加载、MinMax、空间 K-Fold
+│   ├── metrics.py                 # AUC、Recall@Top10%
+│   └── train.py                   # 训练循环、K 折 CV、OOF 外推、最终模型
 │
-├── debug_data/                       # 调试训练数据 (自动生成)
-│   ├── train/                        # 训练集
-│   ├── val/                          # 验证集
-│   └── test/                         # 测试集
+├── tills/                         # 数据准备（一次性脚本）
+│   ├── extract_landslide_points.py    # Excel 滑坡点 → CSV（筛 2000-2021）
+│   ├── join_landslide_dates.py        # 点关联单元：计数 + 首末日期 + 研究期字段
+│   ├── filter_study_units.py          # 研究期 2003-2021 单元过滤（方案 B2）
+│   ├── extract_terrain_features.py    # 地形 5 维（zonal mean）
+│   ├── extract_temporal_features.py   # NDVI/降雨 8 维（全窗口，矩阵缓存优先）
+│   ├── extract_water_features.py      # 淹没 6 维（高程×库水位，无截断）
+│   ├── merge_features.py              # 合并 22 维特征表 + 标签
+│   ├── build_graph.py                 # 图构建（共享边界邻接 / Delaunay）
+│   ├── import_gee_unit_stats.py       # 导入 GEE 方案 C 的单元统计 CSV → 矩阵缓存
+│   ├── validate_ndvi_resolution.py    # 30m vs 90m 分辨率验证
+│   ├── gee_export_unit_stats.js       # GEE：逐年单元统计 CSV 导出（方案 C，推荐）
+│   └── gee_export_ndvi_validation.js  # GEE：30m/90m 分辨率验证导出
 │
-├── debug_models/                     # 调试模型保存
-├── predictions/                      # 预测结果输出
-└── PROJECT_EXPLANATION.md            # 本文档
+├── data/
+│   ├── terrain/Terrain_MultiBand.tif  # 5 波段地形栅格
+│   ├── slope_units/                   # shp + 计数表 + 研究单元文件
+│   ├── landslide/                     # 滑坡点 Excel / CSV
+│   ├── water/水位.xlsx                # 逐日库水位
+│   └── gee/unit_stats/                # GEE 导出的单元统计 CSV（22 年）
+│
+├── features/                      # 生成数据（矩阵缓存、特征表、图、OOF）
+├── models/                        # 模型权重 + 归一化参数
+├── predictions/                   # 易发性 shp + 统计 + 示意图
+├── results/                       # 实验记录（baseline/train JSON）
+└── docs/
+    ├── PROJECT_EXPLANATION.md     # 本文档
+    ├── QUICKSTART.md              # 快速上手指南
+    ├── OPTIMIZATION_PATHS.md      # 早期方案设计文档（含原 28 维设计，部分已被去泄漏修正替代）
+    └── WORK_PLAN.md               # 执行计划
 ```
 
 ---
 
-## 3. 模型架构详解
+## 3. 特征工程（22 维）
 
-### 3.1 骨干网络（Backbone）
+### 3.1 特征总表
 
-训练和预测统一使用 **LandslideProbabilityModel**，架构如下：
+| 类别 | 维度 | 特征 | 计算方式 | 物理意义 |
+|------|------|------|----------|----------|
+| 静态地形 | 5 | `elevation_mean` | 单元内高程均值（SRTM, m） | 高程带位置，距库水位涨落区间关系 |
+| | | `slope_mean` | 单元内坡度均值（°） | 越陡下滑分力越大，经典易发性因子 |
+| | | `aspect_mean` | 单元内坡向均值（0-360°） | 日照/干湿差异（循环变量，普通均值有环绕误差，已知局限） |
+| | | `TRI_mean` | 地形粗糙度指数均值 | 地表起伏，地形破碎度 |
+| | | `curvature_mean` | 单元内曲率均值 | 凸坡应力集中 / 凹坡积水饱水 |
+| 静态几何 | 3 | `area` | 单元面积（m²，UTM 投影） | 单元尺度 |
+| | | `compactness` | 4π·面积/周长² | 形状圆整度 |
+| | | `shape_index` | 周长/(2√(π·面积)) | 形状复杂度，与地形破碎相关 |
+| NDVI 时序 | 4 | `long_trend_slope` | 22 年 NDVI 线性趋势斜率 | 植被长期退化趋势 |
+| | | `long_cv` | NDVI 标准差/均值 | 植被年际稳定性 |
+| | | `recent_2yr_ndvi_drop` | 近 2 年均值 − 长期均值 | 近期植被异常下降 |
+| | | `max_interannual_change` | 年际最大 \|ΔNDVI\| | 植被突变（如坡体位移破坏植被） |
+| 降雨时序 | 4 | `annual_max_rain_mean` | 年最大日降雨的多年均值（mm） | 极端降雨强度背景 |
+| | | `heavy_rain_trend` | 暴雨日数（>50mm/日）线性趋势 | 极端降雨频率变化 |
+| | | `recent_2yr_maxdaily` | 近 2 年最大日降雨（mm） | 近期极端降雨 |
+| | | `antecedent_30d_max` | 22 年"年最大 30 日累计"的最大值（mm） | 前期连续降雨饱水程度 |
+| 淹没（水位） | 6 | `inundation_months_avg` | 年均淹没月数（水位≥单元高程的天数/30.4） | 淹没浸泡时长 |
+| | | `inundation_fraction` | 2003-2021 被淹没时间比例 | 淹没频率 |
+| | | `inundation_episodes` | 淹没期次数（间隔≤5 天合并） | 干湿交替次数 |
+| | | `max_inundation_depth` | max(水位−单元高程, 0)（m） | 历史最大淹没深度 |
+| | | `mean_inundation_depth` | 淹没期间平均淹没深度（m） | 淹没强度 |
+| | | `inundation_annual_std` | 年淹没月数的年际波动（月） | 淹没年际变率 |
+| **合计** | **22** | | | |
 
-```
-输入: (B, C, 256, 256)   ← C=5 个环境影响因子通道
-    │
-    ▼
-┌─────────────────────────────────────────────────┐
-│            CNN Block 1 (16通道)                  │
-│    Conv2d → BatchNorm → ReLU → MaxPool(2×2)     │
-│    输出: (B, 16, 128, 128)                      │
-└─────────────────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────────────────┐
-│            CBAM 注意力模块 1                      │
-│    通道注意力(MLP压缩) + 空间注意力(7×7卷积)       │
-│    输出: (B, 16, 128, 128)                      │
-└─────────────────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────────────────┐
-│            CNN Block 2 (16通道)                  │
-│    Conv2d → BN → ReLU → MaxPool(2×2)            │
-│    输出: (B, 16, 64, 64)                        │
-└─────────────────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────────────────┐
-│            CBAM 注意力模块 2                      │
-│    通道注意力 + 空间注意力                        │
-│    输出: (B, 16, 64, 64)                        │
-└─────────────────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────────────────┐
-│            CNN Block 3 (32通道, 无池化)          │
-│    Conv2d → BN → ReLU                           │
-│    输出: (B, 32, 64, 64)                        │
-└─────────────────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────────────────┐
-│           地理位置编码 (GeoPositionalEncoding)    │
-│    可学习的 (y, x) 空间位置嵌入 (d_model=32)     │
-│    输出: (B, 32, 64, 64)                        │
-└─────────────────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────────────────┐
-│         Transformer 编码器 (2头, 2层)            │
-│    flatten→多头自注意力→残差→reshape              │
-│    建模全局空间依赖关系                           │
-│    输出: (B, 32, 64, 64)                        │
-└─────────────────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────────────────┐
-│         CNN Block 4 (TRANSFORMER_DIM通道)        │
-│    Conv2d → BN → ReLU (无池化)                  │
-│    输出: (B, 32, 64, 64)                        │
-└─────────────────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────────────────┐
-│      SPP 空间金字塔池化 (levels=[1,2,3])          │
-│    多尺度池化: 1×1 + 2×2 + 3×3 区域             │
-│    拼接后维度 = 32 × (1+4+9) = 448              │
-└─────────────────────────────────────────────────┘
-    │
-    ▼
-展平 → FC(448→320) → ReLU → FC(320→128) → ReLU → FC(128→1) → Sigmoid
-    │
-    ▼
-输出: (B, 1)   滑坡概率值 [0, 1]
-```
+### 3.2 去泄漏设计原则（重要）
 
-### 3.2 关键模块解析
+**已删除/修正的设计（早期版本）**：
 
-| 模块 | 文件 | 核心作用 | 关键实现细节 |
-|------|------|----------|-------------|
-| **CNNBlock** | [layers.py](file:///c:/Users/dollars/code/subjects/src/layers.py) | 局部空间特征提取 | Conv2d→BN→ReLU→可选MaxPool，公用模块，被所有模型引用 |
-| **CBAM** | [cbam.py](file:///c:/Users/dollars/code/subjects/src/cbam.py) | 双重注意力聚焦 | ChannelAttention：全局平均+最大池化→共享MLP→Sigmoid加权; SpatialAttention：通道维度平均+最大→7×7卷积→Sigmoid加权 |
-| **GeoPositionalEncoding** | [transformer.py](file:///c:/Users/dollars/code/subjects/src/transformer.py) | 空间位置感知 | 将归一化坐标(y,x)分别通过Linear映射到d_model/2维，拼接到特征图 |
-| **TransformerEncoder** | [transformer.py](file:///c:/Users/dollars/code/subjects/src/transformer.py) | 全局依赖建模 | 特征图展平→PyTorch标准TransformerEncoder(batch_first=True)→reshape回图像 |
-| **SPPModule** | [spp.py](file:///c:/Users/dollars/code/subjects/src/spp.py) | 多尺度特征聚合 | 按levels列表做不同粒度MaxPool→拼接，`out_dim`属性自动计算维度 |
+| 问题 | 表现 | 修正 |
+|------|------|------|
+| 复发特征（recurrence_count 等 4 维） | 特征来源（滑坡清单）与标签同源，\|r(label)\|=0.94，循环论证 | **删除** |
+| 水位"暴露累计"特征（exposure_months、rapid_drawdown_events、water_range_total 等 8 维） | 库水位是全局序列，单元差异仅来自截断日期 → 特征≈编码"是否滑坡/事件多早"，\|r\|=0.58~0.98 | **重设计**为高程×水位淹没交互特征（全窗口，同口径） |
+| 时序特征按事件截断（NDVI/降雨） | 正样本窗口短（趋势被放大）、负样本窗口长（22 年）；"事件前 2 年"与"2019-2020"选段不同 → 单变量 AUC 达 0.87 | **取消截断**，统一全窗口 2000-2021；"事件前"特征改名"近 2 年" |
 
-### 3.3 CBAM 注意力机制原理
+**修正效果**：基线 AUC 从虚高的 **1.0000 → 0.979 → 0.6944 ± 0.045**（真实水平）。特征重要性分散、无单特征垄断，说明模型学到的是环境关系而非标签捷径。
 
-CBAM（Convolutional Block Attention Module）通过两个独立维度让模型"知道看哪里"：
+### 3.3 单元集合（方案 B2）
 
-```
-特征图 F (C×H×W)
-    │
-    ├── Channel Attention (通道注意力) ── 让模型关注"哪些因子更重要"
-    │   AvgPool → MLP → 权重 +
-    │   MaxPool → MLP → 权重 → Sigmoid → 乘回 F
-    │
-    └── Spatial Attention (空间注意力) ── 让模型关注"哪些位置更重要"  
-        Avg(F) + Max(F) → Concat → Conv(7×7) → Sigmoid → 乘回
-```
-
-### 3.4 SPP 空间金字塔池化原理
-
-SPP 解决输入尺寸不固定的问题，通过多尺度池化捕捉不同感受野的特征：
-
-```
-输入特征图 (C, H, W)
-    │
-    ├── level=1: 全局池化 (1×1区域) → reshape → (C, 1×1)
-    ├── level=2: 4分区域池化 → (C, 2×2)
-    └── level=3: 9分区域池化 → (C, 3×3)
-    │
-    └── 拼接 → (C, 1+4+9) = (C, 14)  ← 自动计算 out_dim
-```
-
-`out_dim` 属性会根据 `levels` 配置动态计算，而非硬编码，修改 [debug_config.py](file:///c:/Users/dollars/code/subjects/src/debug_config.py) 中 `SPP_LEVELS` 即可调整。
+- **保留**：无滑坡单元（负样本）+ 研究期 2003-2021 内有滑坡的单元（正样本，含蓄水前首次、研究期复发的单元）；
+- **剔除**：只在蓄水前（2000-2002）滑过坡、研究期未再发的单元（184 个）；
+- 研究单元行序与全量 shp 一致（`data/slope_units/study_units_fixed.shp`），保证特征表 ↔ 图节点对齐。
 
 ---
 
-## 4. 数据流水线详解
+## 4. 图构建
 
-### 4.1 完整数据流程
+`tills/build_graph.py` 将研究单元构建为图 `G(V, E)`：
 
-```
-GEE导出多波段GeoTIFF (C+1波段，最后一层为标签)
-         │
-         ▼
-MultiBandGeoTIFFLoader.load()
-  (rasterio > GDAL > PIL 三级fallback)
-         │
-         ▼
-extract_center_labels(stride=128):
-  1. 扫描标签层，定位所有 label==1 的滑坡像素坐标
-  2. 过滤边界附近无法提取完整切片的点
-  3. 随机选取等量的 label==0 非滑坡点 (balanced sampling)
-  4. 以每个有效坐标为中心，提取 256×256 切片
-  5. 标签 = 中心点的值 (1=滑坡, 0=非滑坡)
-         │
-         ▼
-create_balanced_dataset(features, labels, seed=42):
-  1. 滑坡/非滑坡样本数取min(保持平衡)
-  2. 按 70/15/15 随机划分 train/val/test
-  3. 存为 sample_{idx}_features.npy + sample_{idx}_label.npy
-         │
-         ▼
-LandslideDataset(data_path, normalize=True):
-  1. 扫描目录，配对 _features.npy 和 _label.npy
-  2. __getitem__: np.load → torch.Tensor → min-max归一化
-  3. 每通道独立归一化: (ch - min) / (max - min) → [0, 1]
-         │
-         ▼
-DataLoader → 喂入 LandslideProbabilityModel 训练
-```
-
-### 4.2 数据归一化
-
-不同滑坡因子的数值范围差异巨大（高程可达数千米，坡度0-90°，曲率接近0）。[LandslideDataset](file:///c:/Users/dollars/code/subjects/src/dataloader.py) 在 `normalize=True` 时自动执行**逐通道 min-max 归一化**到 `[0, 1]`，确保训练稳定。
-
-### 4.3 训练数据格式
-
-```
-debug_data/train/
-├── train_0_features.npy    ← Shape: (C, 256, 256), dtype float32
-├── train_0_label.npy       ← Shape: (1,), dtype int64 (0或1)
-├── train_1_features.npy
-├── train_1_label.npy
-└── ...
-```
+- **节点**：25884 个研究单元，节点编号 = 研究单元 shp 行序（与特征表行序一一对应）；
+- **边**（默认）：**共享边界邻接**（STRtree 空间索引 + 边界相交判断）；
+- **备选**：质心 Delaunay（`--method delaunay`）；孤立节点自动加自环；
+- 输出 `features/graph.npz`（edge_index 2×E）。
 
 ---
 
-## 5. 训练流程详解
+## 5. 模型架构（方案 A / B / C）
 
-### 5.1 训练命令（调试模式）
+### 5.1 总体设计
+
+```
+输入: 图 G(V, E)，V=25884 单元 × 22 维特征
+    ↓
+Linear(22 → 64)
+    ↓
+SAGEConv ×2（均值聚合，2 跳邻域）        ← 局部空间依赖
+    ↓
+可学习位置编码 + Transformer Encoder ×2   ← 全局长程依赖（节点间自注意力）
+    ↓
+FC(64→32→1) + Sigmoid → 每单元滑坡概率 [0,1]
+```
+
+### 5.2 三套候选方案
+
+| 方案 | 结构 | 参数量 | 全局能力 | 适用 |
+|------|------|--------|----------|------|
+| **A** | SAGEConv×3 → FC | ~40K | 3 跳视野 | 调试/基线 |
+| **B**（推荐） | SAGEConv×2 + Transformer Encoder×2（4 头） | ~80K | 真正全局 O(N²)（按批拆分） | 论文正式方案 |
+| **C** | SAGEConv×2 + Performer 线性注意力 | ~60K | 全局 O(N) | 生产级（可选依赖，未装自动回退 B） |
+
+实现要点（`src/model.py`）：自带 SAGEConv（`out = W_self·x_i + W_neigh·mean(邻居)`），等价 torch_geometric SAGEConv，免安装；方案 B 全图注意力按 512 节点/批拆分控制显存。
+
+---
+
+## 6. 训练策略
+
+### 6.1 空间 K-Fold
+
+对单元质心做 K-Means 聚类成 5 个空间连续块（消除空间自相关导致的 AUC 虚高；KMeans 因环境 BLAS 不可用时自动回退"空间条带划分"）。
+
+### 6.2 类别不平衡
+
+正样本 662 / 25884（2.6%）：**加权 BCE**，`pos_weight = 负样本数/正样本数 ≈ 38`（按实际数据计算）。
+
+### 6.3 超参数
+
+hidden_dim=64、Transformer 2 层 4 头、dropout 0.3、weight_decay 1e-4、lr 1e-3（Adam）、早停 patience=20（监控 val AUC）、MinMax 归一化（只在训练折拟合）。
+
+### 6.4 训练入口
 
 ```bash
-# 一键完成：生成虚拟数据 → 训练 → 测试
-python debug_train.py --mode full
-
-# 或分步执行：
-python debug_train.py --mode generate   # 仅生成虚拟测试数据
-python debug_train.py --mode train      # 仅训练
-python debug_train.py --mode test       # 仅测试
+python train_gnn.py --plan B --folds 5 --epochs 200 --patience 20
 ```
 
-### 5.2 训练循环核心逻辑
-
-```
-for epoch in range(NUM_EPOCHS):
-    ├── 训练阶段:
-    │   ├── 前向传播: outputs = model(features)      → (B, 1) sigmoid概率
-    │   ├── 计算损失: BCELoss(outputs, labels)        → 二分类交叉熵
-    │   ├── 计算准确率: (outputs > 0.5) == labels
-    │   ├── 反向传播 + 梯度裁剪(max_norm=1.0)
-    │   └── 优化器步进
-    │
-    ├── 验证阶段:
-    │   └── 同上，torch.no_grad() 模式下计算 val_loss 和 val_acc
-    │
-    ├── 学习率调度:
-    │   └── ReduceLROnPlateau(val_acc, mode='max')    → val_acc停止提升时衰减LR
-    │
-    ├── 模型保存:
-    │   └── val_acc > best_val_acc → 保存到 debug_models/debug_best_prob_model.pth
-    │
-    ├── 过拟合检测:
-    │   └── train_acc - val_acc > 0.15 → 警告
-    │
-    └── 早停检查:
-        └── 连续EARLY_STOP_PATIENCE轮val_acc无提升 → 停止训练
-```
-
-### 5.3 训练配置（调试模式）
-
-| 配置项 | 值 | 说明 |
-|--------|-----|------|
-| 输入 | 5通道 × 256×256 | 5个环境影响因子 |
-| CNN | 16输出通道 | 轻量特征提取 |
-| CBAM | reduction=4 | 注意力压缩比 |
-| Transformer | 2层, 2头, dim=32 | 全局关系建模 |
-| SPP | levels=[1,2,3] | 3尺度金字塔池化 |
-| 输出 | 1个概率值 | Sigmoid输出 |
-| 损失函数 | BCELoss | 二分类交叉熵 |
-| 优化器 | Adam(lr=1e-3) | |
-| 学习率调度 | ReduceLROnPlateau(patience=1, factor=0.5) | val_acc不提升时LR减半 |
-| 早停 | patience=2 | 连续2轮无提升即停止 |
-| 梯度裁剪 | max_norm=1.0 | 防止梯度爆炸 |
-| 批次 | train=4, val=4 | 低显存友好 |
-| 训练轮数 | 3 | 调试模式快速验证 |
-| 归一化 | min-max逐通道 | 解决因子量纲差异 |
+输出：`results/train_gnn_<plan>.json`、`features/oof_predictions.csv`（OOF 外推）、`models/best_<plan>.pth` + `scaler_<plan>.npz`。
 
 ---
 
-## 6. 生成5级易发性分布图
-
-### 6.1 预测命令
+## 7. 预测与出图
 
 ```bash
-python predict.py \
-    --input your_factors.tif \
-    --model debug_models/debug_best_prob_model.pth \
-    --output predictions \
-    --method quantile \
-    --stride_factor 0.125
+python predict_gnn.py --plan B --method fixed     # 固定阈值 0.2/0.4/0.6/0.8
 ```
 
-### 6.2 预测流程详解
-
-```
-输入: 5波段GeoTIFF (H×W 大图，无标签)
-         │
-         ▼
-滑动窗口预测 (细粒度，避免马赛克):
-  patch_size = 256, stride = 32 (patch_size × 0.125)
-         │
-  对每个256×256切片:
-    1. 提取切片 → min-max归一化 → 模型推理 → 得到1个概率值
-    2. 仅填充切片的中心 32×32 区域（取置信度最高的中心区域）
-    3. 重叠区域多个概率值取平均
-         │
-         ▼
-probability_map.npy   ← (H, W) 逐像素概率 [0, 1]
-         │
-         ▼
-5级易发性等级划分:
-  ├── equal_interval: [0, 0.2, 0.4, 0.6, 0.8, 1.0] 等间距切分
-  ├── quantile:      按分位数每级20%面积 (推荐)
-  └── natural_breaks: 按数据分布自然间断点
-         │
-         ▼
-输出文件:
-  ├── susceptibility_map.png      ← 五色易发性分布图
-  ├── probability_map.npy         ← 概率数组 (H, W)
-  ├── susceptibility_levels.npy   ← 等级数组 (H, W), 值域0-4
-  └── statistics.txt              ← 各等级面积+占比统计
-```
-
-### 6.3 预测粒度说明
-
-模型对每个 256×256 切片输出**单个概率值**。旧版直接将这个值填满整个256×256区域，导致概率图呈严重马赛克。改进后：
-
-- **stride_factor=0.125** → stride=32像素，相邻切片重叠率87.5%
-- **只填充中心32×32区域**，认为该区域最能代表切片特征
-- 每个像素被约 **64个** 不同切片覆盖取平均 → 平滑过渡，无马赛克
-
-### 6.4 易发性等级
-
-| 等级 | 名称 | 颜色 | 说明 |
-|------|------|------|------|
-| 0 | 低易发性 | 深绿 #228B22 | 滑坡发生概率最低 |
-| 1 | 较低易发性 | 浅绿 #90EE90 | 滑坡发生概率较低 |
-| 2 | 中易发性 | 黄 #FFFF00 | 滑坡发生概率中等 |
-| 3 | 较高易发性 | 橙 #FFA500 | 滑坡发生概率较高 |
-| 4 | 高易发性 | 红 #DC143C | 滑坡发生概率最高 |
-
-### 6.5 等级划分方法对比
-
-| 方法 | 原理 | 适用场景 |
-|------|------|----------|
-| `equal_interval` | 0~1 等分为5段 | 概率分布均匀时 |
-| `quantile` | 每级占20%像素数 | **推荐**，各级面积均衡 |
-| `natural_breaks` | 按20/40/60/80百分位数 | 符合数据自然分布 |
+- 全图 25884 节点前向 → 概率 → 5 级（fixed 或 quantile）→ 回填 `study_units_fixed.shp` 的 `ls_prob`/`ls_level` 字段；
+- 输出：`predictions/susceptibility_units.shp`、`statistics.txt`、`susceptibility_map.png`；
+- QGIS 按 `ls_level` 用 RdYlGn_r 分级填色出图；
+- 评估与出图分离：交叉验证时保存 OOF 外推预测（每个单元的概率来自没训练过它的模型）。
 
 ---
 
-## 7. 使用真实数据训练
+## 8. 数据流程与命令
 
-### 7.1 从 GeoTIFF 准备数据
+### 8.1 总览
+
+```
+GEE 导出（方案 C：逐年单元统计 CSV） → 本地导入矩阵 → 特征提取 → 图 → 基线 → 训练 → 出图
+```
+
+### 8.2 GEE 侧（2 个脚本）
+
+1. **分辨率验证**（一次性）：`tills/gee_export_ndvi_validation.js` 导出单年 30m/90m NDVI → 本地 `validate_ndvi_resolution.py` 对比单元均值，**r>0.99 则用 90m**（实测 r=0.9959）；
+2. **全量导出**（推荐方案 C）：`tills/gee_export_unit_stats.js` 逐年按斜坡单元 `reduceRegions` 算 5 个统计（ndvi / 年最大日降雨 / 年累计 / 年最大30日 / 暴雨日数），导出小 CSV（一年一个任务，只含有用列：`Id, ndvi, maxdaily, cumulative, max30d, heavydays`）。
+
+### 8.3 本地数据准备（`python main.py --stage data` 一键完成）
+
+| 步骤 | 命令（脚本） | 产物 |
+|------|------|------|
+| 滑坡点筛选 2000-2021 | `extract_landslide_points.py` | `data/landslide/landslide_points_2000_2021.csv` |
+| 点关联单元（计数+首末日期+研究期字段） | `join_landslide_dates.py` | `data/slope_units/slope_units_count.csv` |
+| 研究期单元过滤（方案 B2） | `filter_study_units.py` | `study_units_fixed.shp` + `study_units_count.csv` |
+| GEE CSV 导入矩阵缓存（22 年，可循环） | `import_gee_unit_stats.py --year YYYY` | `features/ndvi_unit_matrix.csv`、`rain_unit_matrix.csv` |
+| 地形特征 5 维 | `extract_terrain_features.py` | `features/terrain_features.csv` |
+| NDVI/降雨时序 8 维（全窗口） | `extract_temporal_features.py` | `features/temporal_features.csv` |
+| 淹没特征 6 维 | `extract_water_features.py` | `features/water_features.csv` |
+| 合并 22 维特征表 + 标签 | `merge_features.py` | `features/features.csv`（25884 行 × 30 列） |
+
+### 8.4 建模与出图
 
 ```bash
-# 一步完成：提取切片 → 平衡采样 → 70/15/15划分
-python debug_train.py --mode prepare_geotiff --geotiff your_training_data.tif
-```
-
-这会调用 [create_balanced_dataset](file:///c:/Users/dollars/code/subjects/load_geotiff.py#L267) 自动：
-1. 在标签图层找到所有滑坡点中心
-2. 随机选取等量非滑坡点
-3. 以每个点为中心提取 256×256 切片
-4. 按 70/15/15 分入 train/val/test（`seed=42` 保证可复现）
-
-### 7.2 GeoTIFF 数据要求
-
-训练数据 GeoTIFF 必须包含标签波段：
-
-```
-Shape: (6, H, W)
-  Band 1-5: 环境影响因子 (elevation, slope, aspect, TRI, curvature)
-  Band 6:   标签图层 (0=非滑坡, 1=滑坡)
-```
-
-预测数据 GeoTIFF 只含5个环境因子波段（无需标签）。
-
----
-
-## 8. 完整工作流程（从零到5级易发性图）
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│  阶段一: 数据准备                                              │
-├──────────────────────────────────────────────────────────────┤
-│  1. GEE 中计算5个滑坡影响因子 + 生成标签栅格 → 导出GeoTIFF    │
-│  2. python debug_train.py --mode prepare_geotiff --geotiff x │
-│     → 自动提取切片、平衡采样、train/val/test划分              │
-└──────────────────────────────────────────────────────────────┘
-                            ↓
-┌──────────────────────────────────────────────────────────────┐
-│  阶段二: 模型训练                                              │
-├──────────────────────────────────────────────────────────────┤
-│  python debug_train.py --mode train                           │
-│    - 使用 LandslideProbabilityModel (Sigmoid输出概率)         │
-│    - BCELoss + Adam + ReduceLROnPlateau + EarlyStopping      │
-│    - 自动 min-max 归一化 + 梯度裁剪                            │
-│    - 模型保存至 debug_models/debug_best_prob_model.pth        │
-└──────────────────────────────────────────────────────────────┘
-                            ↓
-┌──────────────────────────────────────────────────────────────┐
-│  阶段三: 模型测试                                              │
-├──────────────────────────────────────────────────────────────┤
-│  python debug_train.py --mode test                            │
-│    - 加载最佳模型在测试集上评估                                 │
-│    - 输出 Test Accuracy                                       │
-└──────────────────────────────────────────────────────────────┘
-                            ↓
-┌──────────────────────────────────────────────────────────────┐
-│  阶段四: 生成5级易发性分布图                                   │
-├──────────────────────────────────────────────────────────────┤
-│  python predict.py --input factors.tif \                     │
-│      --model debug_models/debug_best_prob_model.pth \        │
-│      --output predictions --method quantile                  │
-│                                                               │
-│  输出:                                                        │
-│    predictions/                                               │
-│    ├── susceptibility_map.png   ← 🗺️ 五色易发性分布图        │
-│    ├── probability_map.npy      ← 逐像素概率矩阵              │
-│    ├── susceptibility_levels.npy ← 0~4等级矩阵                │
-│    └── statistics.txt           ← 各等级面积/占比统计         │
-└──────────────────────────────────────────────────────────────┘
+python main.py --stage graph       # 图构建
+python main.py --stage baseline    # XGBoost 基线（AUC≈0.69）
+python main.py --stage train --plan B --folds 5
+python main.py --stage predict --plan B
 ```
 
 ---
 
-## 9. GEE 数据导出参考
-
-在 [Google Earth Engine Code Editor](https://code.earthengine.google.com) 中：
-
-```javascript
-// 1. 计算环境影响因子
-var dem = ee.Image('USGS/SRTMGL1_003');
-var slope = ee.Terrain.slope(dem);
-var aspect = ee.Terrain.aspect(dem);
-var tri = dem.subtract(dem.focal_mean(3)).abs();
-var curvature = dem.focal_mean(3).subtract(dem).multiply(2);
-
-// 2. 合并为多波段图像
-var factors = dem.rename('elevation')
-  .addBands(slope.rename('slope'))
-  .addBands(aspect.rename('aspect'))
-  .addBands(tri.rename('TRI'))
-  .addBands(curvature.rename('curvature'));
-
-// 3. 添加滑坡标签 (方法: 将矢量点转为栅格)
-var landslidePoints = ee.FeatureCollection('your_landslide_points');
-var labels = landslidePoints.reduceToImage(['class'], ee.Reducer.first());
-factors = factors.addBands(labels.rename('label'));
-
-// 4. 导出 (训练用, 6波段含标签)
-Export.image.toDrive({
-  image: factors,
-  description: 'landslide_training_data',
-  scale: 30,
-  region: yourRegion,
-  maxPixels: 1e13
-});
-```
-
----
-
-## 10. 关键代码逻辑解读
-
-### 10.1 为什么 CNN Block 后接 CBAM？
-
-CNNBlock 提取了局部空间特征后，CBAM 通过**通道注意力**让模型知道哪些因子（高程、坡度等）对滑坡影响更大，通过**空间注意力**让模型聚焦滑坡高发区域。两轮 CNN+CBAM 堆叠，逐步精细化特征。
-
-### 10.2 为什么使用地理位置编码？
-
-纯 CNN 只捕捉局部特征，Transformer 虽然能建模全局依赖但缺少位置信息。**GeoPositionalEncoding** 将每个像素的绝对坐标 (y, x) 编码为可学习的向量再加到特征图上，使模型能够学习"某个经纬度区域是否容易发生滑坡"的空间先验。
-
-### 10.3 为什么 CNN Block 3 不池化？
-
-Block 3 之前的两次池化已将 256×256 缩减为 64×64。Block 3 将通道从16增到32但不池化——保留足够空间分辨率供 Transformer 建模细粒度位置关系。若继续池化到32×32，Transformer 的 patch 数量会太少。
-
-### 10.4 损失函数选择
-
-使用 **BCELoss**（二元交叉熵）配合 Sigmoid 输出，损失计算：
-
-```
-loss = -(y·log(p) + (1-y)·log(1-p))
-
-其中 y∈{0,1} 为真实标签，p∈[0,1] 为模型预测概率
-```
-
-准确率计算：`(p > 0.5) == y` 的比例。
-
-### 10.5 模型保存和预测的兼容性
-
-训练和预测都使用 `LandslideProbabilityModel`，权重文件直接兼容。`predict_single_patch()` 中手动执行与训练时完全相同的 min-max 归一化，保证推理时数据分布一致。
-
----
-
-## 11. 常见问题
-
-**Q: 显存不足？**
-可修改 [debug_config.py](file:///c:/Users/dollars/code/subjects/src/debug_config.py) 中 `TRAIN_BATCH_SIZE` 降为2。
-
-**Q: 如何增加更多滑坡因子？**
-修改 [debug_config.py](file:///c:/Users/dollars/code/subjects/src/debug_config.py) 中 `INPUT_CHANNELS` 和 `FACTOR_NAMES`，重新导出 GEE 数据。
-
-**Q: 滑坡/非滑坡样本极度不平衡？**
-`create_balanced_dataset` 默认1:1采样。如需调整，可传入 `samples_per_class` 参数，或使用带权重的 BCELoss。
-
-**Q: 如何在 Colab 运行？**
-```python
-!git clone <repo_url>
-%cd subjects
-!pip install -r requirements.txt
-!python debug_train.py --mode full
-```
-
-**Q: 预测图边缘仍有空白？**
-边缘像素不在任何完整256×256切片的中心区域。`predict_whole_image()` 的第二阶段会用边缘对齐的滑动窗口补全这些像素。
-
----
-
-## 12. 依赖安装
+## 9. 依赖安装
 
 ```bash
+conda create -n landslide python=3.10 -y
+conda activate landslide
 pip install -r requirements.txt
-
-# 核心依赖
-torch>=2.0.0
-numpy>=1.21.0
-matplotlib>=3.5.0
-tqdm>=4.65.0
-
-# GeoTIFF 加载（至少选一个）
-rasterio>=1.3.0    # 推荐，保留地理元数据
-GDAL>=3.5.0        # 备选
 ```
+
+（不需要 torch-geometric；方案 C 可选 `pip install performer-pytorch`。注意：Windows 环境下若 numpy 的 OpenBLAS DLL 损坏会导致 lstsq/sklearn 崩溃 `0xc06d007f`，重装 numpy 即可。）
+
+---
+
+## 10. 常见问题
+
+**Q: 基线 AUC 只有 0.69，正常吗？**
+正常——0.69 是去泄漏后的真实水平。之前 1.0/0.98 都是截断/复发特征泄漏的假象。可通过消融实验（去淹没特征/去时序/去地形）定位各组贡献并进一步调优。
+
+**Q: 特征为什么不用"事件前截断"了？**
+截断会让正/负样本的窗口长度与选取年份不同，把标签信息编进特征（泄漏）。全窗口环境协变量是易发性建模的标准做法；若要时序预测口径，需配套"匹配控制"与时间验证设计，超出当前范围。
+
+**Q: 水位特征只有淹没交互 6 个？**
+是。库水位是全局同一条序列，不结合单元高程就没有单元间差异；"暴露累计"统计又会泄漏。高程×水位交互是既合法又物理正确的消落带专属特征。

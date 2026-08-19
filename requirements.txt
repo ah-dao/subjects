@@ -1,11 +1,30 @@
-torch>=2.0.0
-torchvision>=0.15.0
-numpy>=1.24.0
-pandas>=2.0.0
-scikit-learn>=1.2.0
-matplotlib>=3.7.0
-tqdm>=4.65.0
-pillow>=9.5.0
-tensorflow>=2.12.0
-rasterio>=1.3.0
-scipy>=1.10.0
+# ============ 斜坡单元滑坡易发性分析（GraphSAGE + Transformer）依赖 ============
+
+# --- 核心 ---
+numpy>=1.24
+pandas>=2.0
+scipy>=1.10
+scikit-learn>=1.2
+matplotlib>=3.7
+tqdm>=4.65
+
+# --- 空间数据处理 ---
+geopandas>=0.14
+shapely>=2.0
+rasterio>=1.3
+rasterstats>=0.18        # 栅格按多边形 zonal stats
+
+# --- 机器学习 ---
+torch>=2.0
+xgboost>=1.7             # XGBoost 基线
+
+# --- 读取 .xls 格式 Excel ---
+xlrd>=2.0
+
+# --- 可选：方案 C Performer 线性注意力（O(N) 全图训练） ---
+# performer-pytorch
+
+# 说明：
+# - 本方案不需要 torch-geometric：src/model.py 自带 SAGEConv（均值聚合），
+#   与 torch_geometric.nn.SAGEConv(aggr='mean') 等价，省去 Windows 编译烦恼。
+# - Colab / 云服务器建议：torch>=2.0, cudatoolkit 版本与驱动匹配。

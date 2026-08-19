@@ -1,1 +1,7 @@
 __pycache__/
+
+# 数据与生成产物（体积较大，不提交到 git）
+data/
+features/
+predictions/
+results/
