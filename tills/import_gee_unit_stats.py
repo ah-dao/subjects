@@ -4,6 +4,7 @@
 GEE 端（tills/gee_export_unit_stats.js）每个任务输出一张 CSV（只含有用列）：
     data/gee/unit_stats/unit_stats_<year>.csv   （一年一个，或 unit_stats_<year>_c<块号>.csv）
     列：<单元ID列>, ndvi, maxdaily, cumulative, max30d, heavydays
+         + m01..m12（路径 A：GEE v5 脚本新增的月度累计降雨列）
 
 本脚本把某一年所有 CSV 合并 → 按斜坡单元 shp 行序对齐 → 写入矩阵缓存：
     features/ndvi_unit_matrix.csv   （ndvi_<year> 列）
@@ -29,6 +30,7 @@ sys.path.insert(0, str(ROOT))
 from src.config import SLOPE_UNITS_SHP, FEATURES_DIR, NDVI_MATRIX_CSV, RAIN_MATRIX_CSV
 
 RAIN_BANDS = ['maxdaily', 'cumulative', 'max30d', 'heavydays']
+RAIN_BANDS += [f'm{m:02d}' for m in range(1, 13)]   # 路径 A：月度累计降雨列（GEE v5 导出）
 ID_COLUMNS = ['unit_id', 'fid', 'FID', 'OBJECTID', 'id', 'Id', 'ID']
 
 
@@ -53,7 +55,8 @@ def load_or_create_matrix(path, unit_ids):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--year', required=True, type=int, help='GEE 导出的年份')
-    parser.add_argument('--src', default=str(ROOT / 'data' / 'gee' / 'unit_stats'))
+    parser.add_argument('--src', default=str(ROOT / 'data' / 'gee' / 'unit_stats_month'),
+                        help='GEE 导出目录（默认 data/gee/unit_stats_month，v5 月度导出）')
     parser.add_argument('--id-col', default=None, help='CSV 中单元 ID 列名（默认自动识别）')
     args = parser.parse_args()
 

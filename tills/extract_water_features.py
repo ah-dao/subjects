@@ -1,28 +1,27 @@
 """
-消落带淹没特征（水位 × 单元高程交互，全窗口 2003-2021，无截断、无泄漏）。
+消落带淹没特征 v2（P0 重构）：6 个两两相关 >0.99 的冗余特征 → 2 个互补特征。
 
-设计背景（去泄漏修正）：
-    旧版水位特征按事件日期截断。由于库水位是全局同一条序列，单元间差异只来自
-    "截断日期不同"——累计暴露类特征（exposure_months、rapid_drawdown_events 等）
-    随截断日期单调变化，等于直接编码了标签（基线 AUC=1.0 的泄漏）。
-    新版改为：
-        1. 正负样本用同一观测窗口（2003-2021），不做任何按事件截断；
-        2. 特征只通过"单元高程 vs 库水位"产生单元间差异（物理含义 = 该单元被
-           淹没浸泡的程度），高程不随事件变化 → 无泄漏。
+设计背景（去泄漏修正，沿用 v1）：
+    旧版水位特征按事件日期截断会泄漏（库水位是全局同一条序列，截断日期即标签，
+    曾导致基线 AUC 虚高到 1.0）。v2 只通过"单元高程 vs 库水位"产生单元间差异，
+    高程不随事件变化 → 无泄漏。
 
-特征（6 维）：
-    inundation_months_avg   年均淹没月数（年淹没天数 / 30.4）
-    inundation_fraction     2003-2021 期间被淹没的时间比例（0-1）
-    inundation_episodes     淹没期次数（连续淹没段，间隔 <=5 天合并）
-    max_inundation_depth    历史最大淹没深度 = max(水位-单元高程, 0)（m）
-    mean_inundation_depth   淹没期间平均淹没深度（m）
-    inundation_annual_std   年淹没月数的年际波动（月）
+P0 重构依据（实测）：
+    旧 6 特征（inundation_months_avg / fraction / episodes / max_depth /
+    mean_depth / annual_std）两两 Spearman 相关 >0.99、VIF=1e12、与 elevation
+    相关全为 -0.42 —— 本质是"高程带"这一个信息的 6 种单调变换。
+    重构为 2 个互补特征：
+        inundation_fraction  2003-2021 被淹没时间比例（0-1）        —— "被淹多久"
+        reservoir_zone_pos   clip((elev-145)/(175-145), 0, 1)      —— "离调度带多近"
+                             （145-175m 调度带内的相对位置，∩形：峰在消落带内）
+    （可选扩展：spring_drawdown_fraction —— 每年 1-4 月被淹天数占比的年均值，
+      对应消落期 175→145m 干湿交替冲刷，需要时再加。）
 
 输入：
     data/water/水位.xlsx                （逐日水位；日期/水位 列名自动识别）
     features/terrain_features.csv       （单元高程 elevation_mean，复用避免重复 zonal stats）
 输出：
-    features/water_features.csv         （unit_id + 6 个淹没特征，行序与地形特征表一致）
+    features/water_features.csv         （unit_id + 2 个淹没特征，行序与地形特征表一致）
 """
 
 import sys
@@ -40,8 +39,8 @@ WATER_DATE_COLS = ['日期', 'date', '时间', 'date_time']
 WATER_LEVEL_COLS = ['水位', 'water_level', '水位(m)', 'water_level_m']
 STUDY_START = '2003-01-01'
 STUDY_END = '2021-12-31'
-GAP_TOL_DAYS = 5          # 淹没段间隔 <=5 天视为同一期
-DAYS_PER_MONTH = 30.4
+RESERVOIR_MIN = 145.0     # 调度下限（消落期低水位）
+RESERVOIR_MAX = 175.0     # 调度上限（正常高水位）
 
 
 def detect_col(df, candidates, what):
@@ -49,14 +48,6 @@ def detect_col(df, candidates, what):
         if c in df.columns:
             return c
     raise KeyError(f'水位数据中未找到{what}列（尝试: {candidates}），实际列: {list(df.columns)}')
-
-
-def count_episodes(binary, gap_tol=GAP_TOL_DAYS):
-    """计算连续淹没段数（间隔 <=gap_tol 天合并为同一段）。"""
-    idx = np.flatnonzero(binary)
-    if len(idx) == 0:
-        return 0
-    return 1 + int((np.diff(idx) > gap_tol).sum())
 
 
 def main():
@@ -92,28 +83,17 @@ def main():
     print(f'斜坡单元: {n} 个（含无高程覆盖的单元，其淹没特征按 0 处理）')
 
     # ---------- 3. 逐单元淹没特征（无截断，全窗口） ----------
-    years = np.array([d.year for d in water[date_col].dt.to_period('D').dt.to_timestamp()])
-    year_range = np.arange(2003, 2022)
-    records = {c: np.zeros(n) for c in ('inundation_months_avg', 'inundation_fraction',
-                                        'inundation_episodes', 'max_inundation_depth',
-                                        'mean_inundation_depth', 'inundation_annual_std')}
-
+    records = {'inundation_fraction': np.zeros(n),
+               'reservoir_zone_pos': np.full(n, np.nan)}
     for i in range(n):
         e = elev[i]
         if np.isnan(e):
             continue
         sub = L >= e                       # 该单元每天是否被淹没
-        depth = L - e                      # 淹没深度（可为负）
-        n_sub = int(sub.sum())
-        records['inundation_fraction'][i] = n_sub / len(L)
-        records['inundation_episodes'][i] = count_episodes(sub)
-        records['max_inundation_depth'][i] = float(np.maximum(depth.max(), 0.0))
-        if n_sub:
-            records['mean_inundation_depth'][i] = float(depth[sub].mean())
-        # 年淹没月数 → 均值与年际波动
-        annual = np.array([sub[years == y].sum() / DAYS_PER_MONTH for y in year_range])
-        records['inundation_months_avg'][i] = float(annual.mean())
-        records['inundation_annual_std'][i] = float(annual.std())
+        records['inundation_fraction'][i] = float(sub.sum()) / len(L)
+        # 单元在 145-175m 调度带内的相对位置（∩形：带内最高，带外饱和到 0/1）
+        records['reservoir_zone_pos'][i] = float(np.clip(
+            (e - RESERVOIR_MIN) / (RESERVOIR_MAX - RESERVOIR_MIN), 0.0, 1.0))
 
     df = pd.DataFrame({'unit_id': unit_ids})
     for c in records:
@@ -125,6 +105,10 @@ def main():
     print(f'\n已导出: {out}（{df.shape[0]} 单元 × {df.shape[1] - 1} 特征）')
     print('淹没特征摘要:')
     print(df[list(records)].describe().round(3).to_string())
+    print('reservoir_zone_pos 分箱（验证 ∩形：带内单元占比应最高）:')
+    bins = pd.cut(df['reservoir_zone_pos'], bins=[-0.01, 0, 0.5, 1, 1.01],
+                  labels=['<145m(饱和0)', '带内下段', '带内上段', '>175m(饱和1)'])
+    print(bins.value_counts().to_string())
 
 
 if __name__ == '__main__':

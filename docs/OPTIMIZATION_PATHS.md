@@ -1,7 +1,8 @@
-﻿
+
 > **⚠ 本文档为早期方案设计（2026-08 前），其中 28 维特征方案（含复发特征、事件前截断、
-> 暴露累计水位特征）已被**去泄漏修正**替代：现为 22 维特征（删除复发、时序改全窗口、
-> 水位改淹没交互），以 [PROJECT_EXPLANATION.md](PROJECT_EXPLANATION.md) 为准。
+> 暴露累计水位特征）已被**去泄漏修正**替代：现为 **20 维事件窗口特征**（静态 14 + 事件前
+> K=2 窗口 6，负样本频率匹配防泄漏），以 [PROJECT_EXPLANATION.md](PROJECT_EXPLANATION.md)
+> 与 [FEATURES_EVENT_WINDOW_K2.md](FEATURES_EVENT_WINDOW_K2.md) 为准。
 # 滑坡易发性分析优化路径（斜坡单元方案）
 
 本文档描述从当前栅格 Patch 模型转向**斜坡单元 + GraphSAGE + Transformer** 的完整技术路线，涵盖数据准备、时序特征工程、模型架构与训练策略。

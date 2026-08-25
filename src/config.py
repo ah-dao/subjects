@@ -42,9 +42,11 @@ TERRAIN_FEATURES_CSV = FEATURES_DIR / 'terrain_features.csv'
 TEMPORAL_FEATURES_CSV = FEATURES_DIR / 'temporal_features.csv'
 WATER_FEATURES_CSV = FEATURES_DIR / 'water_features.csv'
 MONTHLY_WATER_CSV = FEATURES_DIR / 'monthly_water_levels.csv'           # extract_water_features 副产物
-FEATURES_CSV = FEATURES_DIR / 'features.csv'                            # 最终 22 维特征表
+FEATURES_CSV = FEATURES_DIR / 'features.csv'                            # 静态全窗口 22 维特征表（历史对照口径）
+EVENT_WINDOW_FEATURES_CSV = FEATURES_DIR / 'event_window_features_k2.csv'  # 当前主线：事件窗口 19 维特征表
 GRAPH_NPZ = FEATURES_DIR / 'graph.npz'                                  # edge_index
 OOF_PREDICTIONS_CSV = FEATURES_DIR / 'oof_predictions.csv'              # 交叉验证外推预测
+COUNTY_UNITS_CSV = FEATURES_DIR / 'county_units.csv'                    # 单元→县级归属（tills/join_county.py 生成）
 # 年度 zonal mean 矩阵缓存（import_gee_unit_stats.py 写入，extract_temporal_features 读取）
 NDVI_MATRIX_CSV = FEATURES_DIR / 'ndvi_unit_matrix.csv'
 RAIN_MATRIX_CSV = FEATURES_DIR / 'rain_unit_matrix.csv'
@@ -56,32 +58,61 @@ RESULT_DIR = ROOT / 'results'
 # ============================================================
 # 二、数据范围
 # ============================================================
-START_YEAR = 2000
+START_YEAR = 2000          # 静态全窗口口径的时序起始年（历史对照）
 END_YEAR = 2021
+MATRIX_START_YEAR = 2000   # 年度矩阵起始年（k=2 定案后不再需要 1997-1999；build 脚本 --start-year 同步为 2000）
 EPSG_GEE = 'EPSG:32649'          # GEE 导出统一投影（库区中段 UTM 49N）
 NDVI_BAND_NAME = 'NDVI'
 
 # ============================================================
-# 三、特征定义（22 维，去泄漏修正后）
+# 三、特征定义
 # ============================================================
+# --- 静态特征（时间无关，事件窗口与静态全窗口口径共用） ---
+# P0 重构：aspect_mean（0-360 普通均值有环绕误差）→ 循环分量 aspect_sin/aspect_cos（单元内 sin/cos 均值）
 STATIC_TERRAIN_FEATURES = [
-    'elevation_mean', 'slope_mean', 'aspect_mean', 'TRI_mean', 'curvature_mean',
-]                                                                       # 5 维：静态地形（单元均值）
-GEOMETRY_FEATURES = ['area', 'compactness', 'shape_index']              # 3 维：静态几何
+    'elevation_mean', 'slope_mean', 'aspect_sin', 'aspect_cos',
+    'TRI_mean', 'curvature_mean',
+]                                                                       # 6 维：静态地形
+# P0 重构：compactness = 1/shape_index² 精确恒等（实测差值 6.7e-16），删除，保留 area/shape_index
+GEOMETRY_FEATURES = ['area', 'shape_index']                              # 2 维：静态几何
+# 水位特征重设计（消除泄漏）：不再按事件日期截断，改用"单元高程 × 库水位"的
+# 淹没交互特征（全窗口 2003-2021，正负样本同口径），见 extract_water_features.py
+# P0 重构（两次迭代）：旧 6 特征两两相关 >0.99 → 初版 2 个（fraction+zone_pos）实测仍
+# 0.978 相关（都是高程的单调变换）→ 最终只保留 1 个 inundation_fraction（"被淹多久"，
+# 由真实水位序列计算，物理最直接；zone_pos 仍由 extract_water_features 输出备用）
+WATER_FEATURES = ['inundation_fraction']                                # 1 维：淹没特征
+STATIC_FEATURES = STATIC_TERRAIN_FEATURES + GEOMETRY_FEATURES + WATER_FEATURES   # 9 维
+
+# --- 事件窗口特征（当前主线，19 维）：静态 9 + 事件前 K 窗口 6 + 事件前 N 月降雨 4 ---
+# K 窗口口径：正样本 T = 研究期首次滑坡年份；负样本 T = 从正样本年份分布频率匹配采样。
+# 时序特征只用 [MATRIX_START_YEAR, T-1] 的数据（事件前），杜绝未来信息与标签泄漏。
+# 构建脚本：tills/build_event_window_features.py --k 2 --start-year 2000 --seed 42
+EVENT_WINDOW_K = 2
+
+# --- 事件前 N 月累计降雨特征（路径 A：GEE v5 月度波段 m01..m12） ---
+# 口径：事件月（正样本真实事件月 / 负样本频率匹配伪月）前 N 个月累计，只取事件前数据；
+# wet_season_frac = 前一年汛期(5-9月)累计 / 前一年年累计。早事件或旧导出缺数据时为 NaN。
+# （ant_3m_max 已删：与 ant_3m 相关 0.925，且单变量判别力最弱）
+ANTECEDENT_FEATURES = ['ant_1m', 'ant_3m', 'ant_6m', 'wet_season_frac']
+
+EVENT_WINDOW_FEATURES = (STATIC_FEATURES + [
+    f'k{EVENT_WINDOW_K}_ndvi_mean',        # 事件前 K 年 NDVI 均值（植被状态）
+    f'k{EVENT_WINDOW_K}_ndvi_change',      # 事件前 K 年 NDVI 均值 − 长期均值（近期退化）
+    f'k{EVENT_WINDOW_K}_maxdaily_max',     # 事件前 K 年最大日降雨峰值（mm）
+    f'k{EVENT_WINDOW_K}_max30d_max',       # 事件前 K 年 30 日累计降雨峰值（mm）
+    f'k{EVENT_WINDOW_K}_heavydays_sum',    # 事件前 K 年暴雨日数（>50mm/日）之和
+    f'k{EVENT_WINDOW_K}_cumulative_mean',  # 事件前 K 年年累计降雨均值（mm）
+] + ANTECEDENT_FEATURES)                                              # 19 维
+INPUT_DIM = len(EVENT_WINDOW_FEATURES)     # 19：GNN 输入维度（当前主线）
+
+# --- 静态全窗口时序特征（历史对照口径，22 维，AUC 0.6944） ---
 NDVI_FEATURES = ['long_trend_slope', 'long_cv', 'recent_2yr_ndvi_drop',
                  'max_interannual_change']                              # 4 维：NDVI 年度时序（全窗口）
 RAIN_FEATURES = ['annual_max_rain_mean', 'heavy_rain_trend',
                  'recent_2yr_maxdaily', 'antecedent_30d_max']           # 4 维：降雨年度时序（全窗口）
-# 水位特征重设计（消除泄漏）：不再按事件日期截断，改用"单元高程 × 库水位"的
-# 淹没交互特征（全窗口 2003-2021，正负样本同口径），见 extract_water_features.py
-WATER_FEATURES = ['inundation_months_avg', 'inundation_fraction',
-                  'inundation_episodes', 'max_inundation_depth',
-                  'mean_inundation_depth', 'inundation_annual_std']     # 6 维：淹没特征
-# 复发特征已删除：其来源（滑坡清单）与标签同源，属于循环论证（泄漏）
-
 ALL_FEATURES = (STATIC_TERRAIN_FEATURES + GEOMETRY_FEATURES + NDVI_FEATURES
-                + RAIN_FEATURES + WATER_FEATURES)                       # 22 维
-INPUT_DIM = len(ALL_FEATURES)
+                + RAIN_FEATURES + WATER_FEATURES)                       # 18 维（仅用于 features.csv 对照口径）
+# 复发特征已删除：其来源（滑坡清单）与标签同源，属于循环论证（泄漏）
 
 # 时序特征需要的最小有效年数（少于该值按缺失处理）
 MIN_YEARS = 3
@@ -105,6 +136,16 @@ SEED = 42
 # 类别不平衡（846 正样本 / 26040 总单元，正样本占比约 3.2%）
 # pos_weight = num_neg / num_pos ≈ 30，训练时按实际数据重新计算
 POS_WEIGHT = 30.0
+
+# ============================================================
+# 负样本采样（评审问题 1：全域负样本范围太大 → 时空邻近策略）
+# ============================================================
+NEG_SAMPLING = 'none'       # 'none'=全域负样本（现状对照）；'proximity'=时空邻近硬采样；
+                            # 'soft'=软负采样（加权，邻近=1、远区=λ，见 NEG_LAM）
+NEG_KM = 3.0                # 时空邻近半径（km，以正样本质心为圆心）
+NEG_K = 2                   # 每正样本抽取负样本数（并集去重，正负比约 1:2~1:3）
+NEG_LAM = 0.2               # 软负采样远区负样本权重（λ=0 退化硬采样，λ=1 退化全域）
+NEG_SEED = 42               # 采样种子（按折采样时每折再叠加 fold 偏移）
 
 # 预测分级阈值（7.1 节）：极低/低/中/高/极高
 LEVEL_THRESHOLDS = [0.2, 0.4, 0.6, 0.8]

@@ -51,7 +51,7 @@ class SAGEConv(nn.Module):
 class SlopeUnitGNNA(nn.Module):
     """方案 A：SAGEConv×3，调试与基线验证用。"""
 
-    def __init__(self, input_dim=28, hidden_dim=64, dropout=0.3):
+    def __init__(self, input_dim=20, hidden_dim=64, dropout=0.3):
         super().__init__()
         self.has_global_attention = False
         self.input_proj = nn.Linear(input_dim, hidden_dim)
@@ -81,7 +81,7 @@ class SlopeUnitGNNB(nn.Module):
     可替换为单元质心坐标的连续编码（见 predict/train 中的说明）。
     """
 
-    def __init__(self, input_dim=28, hidden_dim=64, num_heads=4,
+    def __init__(self, input_dim=20, hidden_dim=64, num_heads=4,
                  num_layers=2, num_nodes=26068, dropout=0.3):
         super().__init__()
         self.has_global_attention = True
@@ -129,7 +129,7 @@ class SlopeUnitGNNC(nn.Module):
     未安装 performer-pytorch 时自动回退为标准 TransformerEncoderLayer。
     """
 
-    def __init__(self, input_dim=28, hidden_dim=64, num_heads=4,
+    def __init__(self, input_dim=20, hidden_dim=64, num_heads=4,
                  num_layers=2, num_nodes=26068, dropout=0.3):
         super().__init__()
         self.has_global_attention = True

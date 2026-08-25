@@ -1,21 +1,27 @@
 """
 从 5 波段地形 GeoTIFF 提取斜坡单元静态地形特征（OPTIMIZATION_PATHS.md 3.3 / 4.6 节）。
 
-特征（5 维，取单元内均值，与 28 维特征表一致）：
-    elevation_mean, slope_mean, aspect_mean, curvature_mean, TRI_mean
+特征（6 维，取单元内均值）：
+    elevation_mean, slope_mean, curvature_mean, TRI_mean
+    aspect_sin, aspect_cos     ← P0 重构：坡向循环分量（单元内 sin/cos 均值），
+                                 消除 0°/360° 环绕误差（旧 aspect_mean 的已知局限）；
+                                 循环均值角 = atan2(aspect_sin, aspect_cos) 可作论文报告
 
-注：坡向是循环变量，普通均值存在 0°/360° 环绕误差；如需更严谨可改为
-sin/cos 编码的循环均值（需同步调整特征维度）。
+波段顺序（与 Terrain_MultiBand.tif 描述一致）：
+    1=elevation, 2=slope, 3=aspect, 4=curvature, 5=TRI
 
 用法：
     python tills/extract_terrain_features.py
 输出：
-    features/terrain_features.csv   （unit_id + 5 个特征列，行序与 shp 一致）
+    features/terrain_features.csv   （unit_id + 6 个特征列，行序与 shp 一致）
 """
 
+import os
 import sys
+import tempfile
 from pathlib import Path
 
+import numpy as np
 import geopandas as gpd
 import pandas as pd
 from rasterstats import zonal_stats
@@ -25,15 +31,9 @@ sys.path.insert(0, str(ROOT))
 
 from src.config import SLOPE_UNITS_SHP, TERRAIN_TIF, TERRAIN_FEATURES_CSV
 
-# 波段顺序须与 Terrain_MultiBand.tif 的描述一致（elevation, slope, aspect, curvature, TRI）
-BAND_STATS = {
-    'elevation': ['mean'],
-    'slope': ['mean'],
-    'aspect': ['mean'],
-    'curvature': ['mean'],
-    'TRI': ['mean'],
-}
-BAND_ORDER = ['elevation', 'slope', 'aspect', 'curvature', 'TRI']
+# 均值类波段（band 编号须与 Terrain_MultiBand.tif 一致）
+BAND_INDEX = {'elevation': 1, 'slope': 2, 'curvature': 4, 'TRI': 5}
+ASPECT_BAND = 3            # aspect 波段（0-360°），单独做循环分量
 
 
 def get_unit_id(gdf):
@@ -42,6 +42,36 @@ def get_unit_id(gdf):
         if col in gdf.columns:
             return gdf[col].astype(str)
     return gdf.index.astype(str)
+
+
+def circular_aspect(gdf, tif_path, band=ASPECT_BAND):
+    """单元内坡向循环均值分量 mean(sin) / mean(cos)，消除 0/360 环绕误差。
+
+    逐块读 aspect 波段 → 写临时 sin/cos GeoTIFF（避免整幅入内存）→ zonal mean。
+    flat（aspect<0，无坡向）像素的 sin/cos 数值上无害，直接参与均值。
+    """
+    import rasterio
+    sin_tmp = tempfile.mktemp(suffix='_aspect_sin.tif')
+    cos_tmp = tempfile.mktemp(suffix='_aspect_cos.tif')
+    try:
+        with rasterio.open(tif_path) as src:
+            profile = src.profile
+            profile.update(count=1, dtype='float32', compress='lzw')
+            with rasterio.open(sin_tmp, 'w', **profile) as dss, \
+                 rasterio.open(cos_tmp, 'w', **profile) as dsc:
+                for _, window in src.block_windows(band):
+                    a = src.read(band, window=window).astype(np.float64)
+                    rad = np.deg2rad(a)
+                    dss.write(np.sin(rad).astype(np.float32), 1, window=window)
+                    dsc.write(np.cos(rad).astype(np.float32), 1, window=window)
+        res_sin = zonal_stats(gdf, sin_tmp, stats=['mean'], all_touched=True)
+        res_cos = zonal_stats(gdf, cos_tmp, stats=['mean'], all_touched=True)
+        return ([r['mean'] if r else float('nan') for r in res_sin],
+                [r['mean'] if r else float('nan') for r in res_cos])
+    finally:
+        for p in (sin_tmp, cos_tmp):
+            if os.path.exists(p):
+                os.remove(p)
 
 
 def main():
@@ -58,14 +88,14 @@ def main():
     print(f'斜坡单元数: {len(gdf)}')
 
     records = {'unit_id': get_unit_id(gdf)}
-    for band_idx, band_name in enumerate(BAND_ORDER, start=1):
-        stats = BAND_STATS[band_name]
-        print(f'  提取 {band_name} (band {band_idx}, stats={stats}) ...')
-        result = zonal_stats(gdf, str(TERRAIN_TIF), stats=stats, band=band_idx,
+    for band_name, band_idx in BAND_INDEX.items():
+        print(f'  提取 {band_name} (band {band_idx}, stats=mean) ...')
+        result = zonal_stats(gdf, str(TERRAIN_TIF), stats=['mean'], band=band_idx,
                              all_touched=True)
-        for stat in stats:
-            col = f'{band_name}_{stat}'
-            records[col] = [r[stat] if r else float('nan') for r in result]
+        records[f'{band_name}_mean'] = [r['mean'] if r else float('nan') for r in result]
+
+    print(f'  提取 aspect 循环分量 (band {ASPECT_BAND}: sin/cos) ...')
+    records['aspect_sin'], records['aspect_cos'] = circular_aspect(gdf, str(TERRAIN_TIF))
 
     df = pd.DataFrame(records)
     out = TERRAIN_FEATURES_CSV

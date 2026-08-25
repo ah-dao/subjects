@@ -8,6 +8,9 @@
 //   4. DIAG=false 时完全不打印诊断，最小化同步请求。
 //
 // v4 追加：只导出有用列（ID + 5 个统计），剔除 shp 无关属性与几何列。
+// v5 追加：路径 A 时间粒度升级 —— 默认新增 12 个月度累计降雨波段（m01..m12），
+//         供本地构建"事件前 N 月累计降雨"特征（ant_1m/ant_3m/ant_6m 等）。
+//         不想要月度列时把 RAIN_GRANULARITY 改为 'none' 即恢复 v4 行为。
 //
 // 用法：
 //   1. 改 UNITS_ASSET（如需）
@@ -25,8 +28,11 @@ var START_YEAR   = 2000;
 var END_YEAR     = 2021;
 var SCALE        = 90;           // 分辨率验证通过，用 90m
 var CHUNK        = 0;            // 0 = 一年一个任务；超时改 5000
-var FOLDER       = 'unit_stats'; // Drive 输出文件夹
+var FOLDER       = 'unit_stats_month'; // Drive 输出文件夹
 var DIAG         = true;         // 打印诊断（不影响导出；网络不稳可设 false）
+var RAIN_GRANULARITY = 'month';  // 路径 A：'month'=新增 12 个月度累计波段 m01..m12；'none'=仅年度统计（旧行为）
+var MONTH_COLS = ['m01', 'm02', 'm03', 'm04', 'm05', 'm06',
+                  'm07', 'm08', 'm09', 'm10', 'm11', 'm12'];   // 月度列名（客户端常量，诊断/导出共用）
 
 // ---------------- Landsat 云掩膜 + NDVI ----------------
 function addNdviL89(img) {
@@ -38,6 +44,25 @@ function addNdviL57(img) {
   var qa = img.select('QA_PIXEL');
   var mask = qa.bitwiseAnd(1 << 3).eq(0).and(qa.bitwiseAnd(1 << 4).eq(0)).and(qa.bitwiseAnd(1 << 5).eq(0));
   return img.normalizedDifference(['SR_B4', 'SR_B3']).rename('NDVI').updateMask(mask);
+}
+
+// 路径 A：逐月累计降雨波段（m01..m12）。
+// 注意 1：GEE 的 Image.rename 只接受客户端字符串，不能在 ee.map 里用
+//         ee.String 拼接波段名（会报 "Invalid band name: 'mee.String({...})'"）。
+// 注意 2：不要用 ee.ImageCollection(imgs).toBands() —— 它会自动给波段名加
+//         索引前缀（0_m01, 1_m02, ...），与 WANT_ARR 的 'm01' 对不上，
+//         导致导出列丢失。改为客户端 forEach + addBands 直接拼出 m01..m12。
+function monthlyBands(daily, year) {
+  var months = ['01', '02', '03', '04', '05', '06',
+                '07', '08', '09', '10', '11', '12'];
+  var out = null;
+  months.forEach(function(mm) {
+    var start = ee.Date.fromYMD(year, parseInt(mm, 10), 1);
+    var band = daily.filterDate(start, start.advance(1, 'month'))
+      .sum().rename('m' + mm);
+    out = out ? out.addBands(band) : band;
+  });
+  return out;
 }
 
 // 单年 5 波段影像：ndvi + maxdaily + cumulative + max30d + heavydays
@@ -75,7 +100,11 @@ function yearImage(year, region) {
   });
   var max30d = ee.ImageCollection(windows).max().rename('max30d');
 
-  return ndvi.addBands(maxdaily).addBands(cumulative).addBands(max30d).addBands(heavy);
+  var out = ndvi.addBands(maxdaily).addBands(cumulative).addBands(max30d).addBands(heavy);
+  if (RAIN_GRANULARITY === 'month') {
+    out = out.addBands(monthlyBands(daily, year));   // 路径 A：+12 个月度累计波段
+  }
+  return out;
 }
 
 // ---------------- 逐年导出 ----------------
@@ -86,6 +115,20 @@ if (DIAG) {
   // 元数据级诊断（不涉及栅格计算，请求轻量）
   try { print('单元属性列:', units.first().propertyNames()); }
   catch (e) { print('诊断-属性列失败（忽略）:', e.message); }
+
+  // 路径 A 探测：yearImage 是否真的含月度波段（bandNames 是元数据，廉价）
+  if (RAIN_GRANULARITY === 'month') {
+    try {
+      var probe = yearImage(START_YEAR, units.geometry().bounds().buffer(500));
+      var probeBands = probe.bandNames().getInfo();
+      var probeOK = MONTH_COLS.every(function(n) { return probeBands.indexOf(n) >= 0; });
+      print('诊断-yearImage 波段数:', probeBands.length);
+      print('诊断-yearImage 波段名:', probeBands.join(', '));
+      print('诊断-含月度波段 m01..m12:', probeOK ? '是' : '!!! 否（请检查 monthlyBands / yearImage）');
+    } catch (e) {
+      print('诊断-波段探测失败（忽略）:', e.message);
+    }
+  }
 }
 
 // 只保留有用列（在第一次 reduceRegions 后取实际列名做交集）。
@@ -94,6 +137,9 @@ if (DIAG) {
 // （会被当作 ee.Filter 报 "Invalid argument specified for ee.Filter()"）。
 // 失败时 PRESENT 为 null，导出全部列（不影响使用）。
 var WANT_ARR = [ID_COL, 'ndvi', 'maxdaily', 'cumulative', 'max30d', 'heavydays'];
+if (RAIN_GRANULARITY === 'month') {   // 路径 A：导出月度累计列（与 yearImage 波段名一致）
+  WANT_ARR = WANT_ARR.concat(MONTH_COLS);
+}
 var PRESENT = null;
 var presentDone = false;
 
@@ -112,6 +158,15 @@ function exportYear(year, feats, suffix) {
       var allNames = stats.first().propertyNames().getInfo();
       PRESENT = WANT_ARR.filter(function(n) { return allNames.indexOf(n) >= 0; });
       if (DIAG) { print('诊断-最终导出列名:', PRESENT); }
+      if (RAIN_GRANULARITY === 'month' && PRESENT) {
+        var missingMonthly = MONTH_COLS.filter(function(n) { return PRESENT.indexOf(n) < 0; });
+        if (missingMonthly.length > 0) {
+          print('!!! 错误: 月度波段缺失: ' + missingMonthly.join(',') +
+                '。请检查 monthlyBands / yearImage，并确认点 RUN 的是本次新提交的任务');
+        } else {
+          print('诊断-月度列 OK（m01..m12 已包含）');
+        }
+      }
     } catch (e) {
       print('诊断-列名获取失败（将导出全部列，不影响使用）:', e.message);
     }

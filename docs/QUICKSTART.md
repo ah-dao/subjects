@@ -48,7 +48,7 @@ python tills/validate_ndvi_resolution.py \
 
 判断：**Pearson r > 0.99 → 全量导出用 90m**（速度约快 9 倍，单元级特征几乎无损）；r < 0.95 则保持 30m 并按年×分段导出。
 
-### 1.3 全量导出 22 年（推荐方案 C：GEE 直接算单元均值，导出小 CSV）
+### 1.3 全量导出 25 年（推荐方案 C：GEE 直接算单元均值，导出小 CSV）
 
 分辨率验证通过（r=0.9959）后，推荐用方案 C——**GEE 服务器端直接按斜坡单元算逐年均值，导出几十 KB 的 CSV**，没有大栅格、没有下载压力、没有本地重投影问题：
 
@@ -56,6 +56,7 @@ python tills/validate_ndvi_resolution.py \
 // 打开 tills/gee_export_unit_stats.js：
 //   - UNITS_ASSET 换成你的 asset 路径
 //   - ID_COL 换成你 shp 的单元 ID 列名（本地 merge 需一致）
+//   - START_YEAR=1997, END_YEAR=2021（1997-1999 为蓄水前补齐年份）
 //   - 先把 START_YEAR / END_YEAR 都设成同一年（如 2015）做单年测试
 // 运行后 Tasks 面板批量点 RUN（任务很小，可全部排队）
 // 每张 CSV 只含有用列：Id, ndvi, maxdaily, cumulative, max30d, heavydays
@@ -65,11 +66,13 @@ python tills/validate_ndvi_resolution.py \
 
 ```bash
 # 下载 CSV 到 data/gee/unit_stats/（unit_stats_<年份>.csv，一年一个）
-python tills/import_gee_unit_stats.py --year 2015
+python tills/import_gee_unit_stats.py --year 1997   # 1997/1998/1999 为补齐年份
+python tills/import_gee_unit_stats.py --year 1998
+python tills/import_gee_unit_stats.py --year 1999
 # → 自动合并分块、按 shp 行序对齐、写入 features/ndvi_unit_matrix.csv 与 rain_unit_matrix.csv
 ```
 
-全部年份齐后，`extract_temporal_features.py` 自动读取矩阵计算时序特征。
+全部年份齐后，`build_event_window_features.py` 自动读取矩阵计算事件窗口特征。
 
 ### 1.4 滑坡点关联单元（脚本自动完成，无需 QGIS）
 
@@ -112,9 +115,9 @@ data/
 python main.py --stage all --plan B --folds 5
 
 # 或分阶段执行
-python main.py --stage data       # 滑坡点/关联/过滤 → 特征提取 → 合并 22 维特征表
+python main.py --stage data       # 特征提取 → 22 维对照表 + 事件窗口 20 维特征表（当前主线）
 python main.py --stage graph      # 图构建
-python main.py --stage baseline   # XGBoost 基线（验证特征，AUC≈0.69）
+python main.py --stage baseline   # XGBoost 基线（事件窗口特征，AUC≈0.71）
 python main.py --stage train --plan B --folds 5
 python main.py --stage predict --plan B --method fixed
 ```
@@ -131,13 +134,16 @@ python tills/extract_landslide_points.py
 python tills/join_landslide_dates.py
 python tills/filter_study_units.py
 
-# 1) 各特征提取
+# 1) 各特征提取（静态对照口径）
 python tills/extract_terrain_features.py    # → terrain_features.csv（5 维地形均值）
-python tills/extract_temporal_features.py   # → temporal_features.csv（8 维时序，全窗口）
+python tills/extract_temporal_features.py   # → temporal_features.csv（8 维时序，全窗口，对照用）
 python tills/extract_water_features.py      # → water_features.csv（6 维淹没特征，无截断）
+python tills/merge_features.py              # → features/features.csv（22 维对照特征表 + 标签）
 
-# 2) 合并 22 维特征表 + 标签
-python tills/merge_features.py              # → features/features.csv（25884 行 × 30 列）
+# 2) ★ 事件窗口特征表（当前主线）
+python tills/build_event_window_features.py --k 2 --start-year 1997 --seed 42
+# → features/event_window_features_k2.csv（25884 行 × 22 列：静态 14 + 事件前 2 年窗口 6 + label）
+#   正样本 T=首次滑坡年；负样本 T=频率匹配伪事件年；时序特征只用 [1997, T-1] 数据（无泄漏）
 ```
 
 ### 4.2 图构建
@@ -150,9 +156,11 @@ python tills/build_graph.py --method delaunay            # 质心 Delaunay（备
 ### 4.3 XGBoost 基线
 
 ```bash
-python baseline_xgb.py --folds 5 --method spatial_kmeans
-# 查看 results/baseline_xgb.json：平均 AUC 与特征重要性
-# 当前实测：AUC ≈ 0.69 ± 0.05（去泄漏后的真实水平）；特征重要性应分散无垄断
+python baseline_xgb.py --features-csv features/event_window_features_k2.csv \
+    --folds 5 --method spatial_kmeans
+# 查看 results/baseline_xgb_ew_feat_k2.json：平均 AUC 与特征重要性
+# 当前实测：AUC ≈ 0.71 ± 0.02（事件窗口 20 维，去泄漏后真实水平）
+# 说明：不带 --features-csv 时跑静态全窗口 22 维对照口径（AUC≈0.69）
 ```
 
 ### 4.4 GNN 训练
@@ -238,6 +246,7 @@ drive.mount('/content/drive')
 | GEE 报 "Failed to execute 'send'..." | 脚本已改用外包络矩形 region（避免 2.6 万多边形巨型几何）；仍报错时检查代理（Vortex 127.0.0.1:7897）或换无痕窗口 |
 | GEE 报 "Failed to contact Earth Engine servers" | 本机网络/代理问题，非脚本问题：确认 `netstat -ano | findstr 7897` 有监听、刷新页面、无痕窗口重试 |
 | 特征表缺列 | 先运行 `python main.py --stage data` 检查 features/ 下各中间 CSV 是否齐全 |
-| 基线 AUC 异常高（接近 1.0） | 存在特征泄漏：检查是否混入复发特征/截断类时序特征（见 PROJECT_EXPLANATION 3.2 节），按 22 维配置核对 `src/config.py` |
-| 训练 loss 为 NaN | 检查 `features/features.csv` 是否有 Inf；merge_features 已用列均值填充 NaN |
-| 想换特征 | 修改 `src/config.py` 的 `ALL_FEATURES`，同步调整各提取脚本 |
+| 基线 AUC 异常高（接近 1.0） | 存在特征泄漏：检查是否混入复发特征/截断类时序特征（见 PROJECT_EXPLANATION 3.2 节） |
+| 训练 loss 为 NaN | 检查特征表是否有 Inf；merge_features 已用列均值填充 NaN |
+| 想换事件窗口 K | 重跑 `build_event_window_features.py --k <K> --start-year 1997`，再跑基线对比（参考 K 扫描表） |
+| 多次滑坡单元 | 事件年取首次滑坡年份；次数不进模型（会泄漏），可用 `--weight-scheme count` 加权（已验证无显著增益） |

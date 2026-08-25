@@ -22,7 +22,8 @@ import torch
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
-from src.config import (FEATURES_CSV, GRAPH_NPZ, study_shp_path, MODEL_DIR,
+from src.config import (EVENT_WINDOW_FEATURES_CSV, EVENT_WINDOW_FEATURES,
+                        GRAPH_NPZ, study_shp_path, MODEL_DIR,
                         PRED_DIR, LEVEL_THRESHOLDS, LEVEL_NAMES,
                         PLAN, HIDDEN_DIM, NUM_HEADS, TRANSFORMER_LAYERS, DROPOUT)
 from src.dataset import load_features, load_graph, minmax_apply
@@ -54,7 +55,7 @@ def main():
     if not scaler_path.exists():
         raise FileNotFoundError(f'未找到归一化参数: {scaler_path}')
 
-    unit_id, X, y = load_features(FEATURES_CSV)
+    unit_id, X, y = load_features(EVENT_WINDOW_FEATURES_CSV, features=EVENT_WINDOW_FEATURES)
     edge_index = load_graph(GRAPH_NPZ)
 
     # 归一化 + 模型

@@ -1,7 +1,7 @@
 # 滑坡易发性预测 —— GraphSAGE + Transformer 斜坡单元方案 4 周执行计划
 
 > 最终目标：完成 GraphSAGE + 全局 Transformer 斜坡单元方案的**模型实现、训练验证与矢量出图**。
-> 数据窗口：2000-2021（22 年）；有效斜坡单元 26040；节点特征 28 维。
+> 数据窗口：1997-2021（年度矩阵 25 年）；研究期 2003-2021；有效斜坡单元 25884；节点特征 20 维（事件前 K=2 窗口）。
 
 ---
 
@@ -9,7 +9,7 @@
 
 | 周 | 主题 | 核心任务 | 产出 |
 |----|------|---------|------|
-| 1 | 数据收尾 + GNN 基础 | 完成 28 维特征表 + edge_index + XGBoost 基线；学 GraphSAGE / PyG / Transformer 核心 | 特征表 + XGBoost AUC |
+| 1 | 数据收尾 + GNN 基础 | 完成 20 维事件窗口特征表 + edge_index + XGBoost 基线；学 GraphSAGE / PyG / Transformer 核心 | 特征表 + XGBoost AUC |
 | 2 | 模型实现 | 实现方案 A（SAGEConv×3）与方案 B（SAGE×2 + Transformer），单折训练调通 | SlopeUnitGNNA/B + 单折 AUC |
 | 3 | 交叉验证 + 消融 | 5 折空间交叉验证、方案对比、消融实验 | 5 折 AUC ± std + 消融表 |
 | 4 | 全图推理 + 出图 | 全图推理回填 shapefile，QGIS 矢量分级出图，整理结果 | 5 级易发性图 + 结果表 |
@@ -21,28 +21,28 @@
 ## 第 1 周：数据收尾 + GNN 基础
 
 **任务（实现为主）**
-- 特征提取：水位 `extract_water_features.py`、地形 `extract_terrain_features.py`、时序 `extract_temporal_features.py`（按滑坡日期截断）→ 合并 28 维特征表。
+- 特征提取：水位 `extract_water_features.py`、地形 `extract_terrain_features.py`、时序（事件前 K 窗口 `build_event_window_features.py`，K=2）→ 20 维事件窗口特征表。
 - 图构建：`build_graph.py`（多边形共享边界或 Delaunay）→ `edge_index`。
-- 基线：用 28 维特征训练 XGBoost，5 折输出 AUC。
+- 基线：用 20 维事件窗口特征训练 XGBoost，5 折输出 AUC。
 
 **学习（按需穿插，服务于模型实现）**
 - GraphSAGE 论文（Hamilton et al. 2017）：理解归纳式 vs 直译式，为什么选它。
 - PyG 官方 Introduction + Cora 示例：`Data(x, edge_index, y)` 与 `edge_index [2, num_edges]`。
 - The Illustrated Transformer（Jay Alammar）：Self-Attention 与位置编码（为方案 B 铺垫）。
 
-**断点评估**
-- [ ] 特征表 (26040 × 28) 无 NaN、值域合理；edge_index 全图连通、无孤立节点
-- [ ] XGBoost 基线 AUC > 0.70，水位特征 importance 靠前
-- [ ] 能解释 GraphSAGE 选型原因与 edge_index 格式
+**断点评估（当前进度：已完成）**
+- [x] 特征表 (25884 × 20) 无 NaN、值域合理；edge_index 全图连通、无孤立节点
+- [x] XGBoost 基线 AUC ≈ 0.71（事件窗口 20 维，0.7096 ± 0.023），特征重要性分散（k2_ndvi_mean 最前）
+- [x] 能解释 GraphSAGE 选型原因与 edge_index 格式
 
 ---
 
 ## 第 2 周：方案 A / B 实现 + 单折训练
 
 **任务（模型实现，本周重心）**
-- 实现方案 A `SlopeUnitGNNA`（`Linear(28→64) → SAGEConv×3 → FC → Sigmoid`）。
+- 实现方案 A `SlopeUnitGNNA`（`Linear(20→64) → SAGEConv×3 → FC → Sigmoid`）。
 - 实现方案 B `SlopeUnitGNNB`（`SAGEConv×2 → 可学习位置编码 → TransformerEncoder×2 → FC → Sigmoid`）。
-- 训练循环：加权 BCE（pos_weight≈30）、Adam lr=1e-3、Dropout 0.3、Early Stopping（监控 val AUC）。
+- 训练循环：加权 BCE（pos_weight≈38）、Adam lr=1e-3、Dropout 0.3、Early Stopping（监控 val AUC）。
 - 方案 B 全图 O(N²) 会爆显存时，用 batch 拆分（256–512 节点/批）做局部自注意力。
 
 **学习（配合编码）**
@@ -78,7 +78,7 @@
 ## 第 4 周：全图推理 + 矢量出图 + 结果整理
 
 **任务（出图，本周重心）**
-- `predict_gnn.py`：加载最优模型 → 全图 26040 节点前向 → 输出滑坡概率 [0,1] → 回填 shapefile `ls_prob` 列。
+- `predict_gnn.py`：加载最优模型 → 全图 25884 节点前向 → 输出滑坡概率 [0,1] → 回填 shapefile `ls_prob` 列。
 - QGIS 矢量分级出图：按 `ls_prob` 分 5 级（极低 0-0.2 / 低 0.2-0.4 / 中 0.4-0.6 / 高 0.6-0.8 / 极高 0.8-1.0），RdYlGn_r 配色，导出 PNG + PDF。
 - 整理 Master 结果表（XGBoost / A / B 的 AUC、消融、超参数），提炼论文要点。
 - （可选）接入方案 C Performer，全图一次过，作为生产/大图优化。
@@ -112,7 +112,7 @@
 
 1. **先基线后优化**：XGBoost → 方案 A → 方案 B，逐步叠加。
 2. **一次只改一件事**：每次改动后跑验证，确认有效再改下一处。
-3. **因果对齐是生命线**：时序特征必须按滑坡日期截断，禁止数据泄漏。
+3. **因果对齐是生命线**：时序特征必须用事件前窗口（正样本对齐到首次滑坡年、负样本频率匹配），禁止数据泄漏。
 4. **实验记录即论文素材**：AUC、超参数、耗时都记入 `docs/experiment_log.md`。
 5. **断点不过就停下修**：不带病进入下一周。
 

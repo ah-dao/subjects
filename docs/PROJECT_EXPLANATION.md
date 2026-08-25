@@ -1,14 +1,23 @@
-# 滑坡易发性模型项目说明（斜坡单元方案）
+# 滑坡易发性模型项目说明（斜坡单元方案，19 维定稿版）
+
+> 本文件对应当前主线代码；实验数字、复现命令与结果文件索引见
+> [EXPERIMENT_RESULTS.md](EXPERIMENT_RESULTS.md)。
 
 ## 1. 项目概述
 
-本项目实现三峡库区消落带**滑坡易发性评估**，采用 **斜坡单元（Slope Unit）+ GraphSAGE + Transformer** 方案：以地形自然分割的斜坡单元为分析单位，为每个单元构建 **22 维特征**，用图神经网络建模单元间空间关系，输出每个单元的滑坡概率（0~1），最终划分为 **5 级易发性**并回填 shapefile 生成矢量易发性图。
+本项目实现三峡库区消落带**滑坡易发性评估**，采用 **斜坡单元（Slope Unit）+ GraphSAGE + Transformer** 方案：以地形自然分割的斜坡单元为分析单位，为每个单元构建 **19 维特征**（静态 9 + 事件前 K=2 窗口 6 + 事件前 N 月降雨 4），用图神经网络建模单元间空间关系，输出每个单元的滑坡概率（0~1），最终划分为 **5 级易发性**并回填 shapefile 生成矢量易发性图。
 
-**研究设计要点（本版本的关键决策）**：
+**研究设计要点（定稿版的关键决策）**：
 
 1. **研究期 2003-2021**（三峡水库 2003 年 6 月开始蓄水）：剔除"只在蓄水前（2000-2002）发生滑坡、研究期未再发"的单元（既不当正也不当负），保留研究期内滑过坡的单元（含蓄水前首次、研究期复发的单元）。
-2. **特征去泄漏**：经诊断发现"按事件日期截断"的时序特征会因正/负样本窗口长度与选取年份不同而**编码标签**（基线 AUC 虚高到 1.0 的根源）。现统一采用**研究期全窗口**环境协变量（易发性建模的标准口径），水位改用"高程 × 库水位"的**淹没交互特征**，并删除与标签同源的复发特征。
-3. **模型**：GraphSAGE 学局部空间依赖 + 全局 Transformer 学长程依赖（方案 B，推荐）。
+2. **事件对齐的时序特征（当前主线）**：时序特征不再用"固定全窗口近 2 年"，改为**事件前 K 窗口 + 事件前 N 月降雨**：
+   - 正样本取研究期首次滑坡年份前 K 年（[T−K, T−1]），**K=2** 定案；
+   - 负样本用**频率匹配**的伪事件年 T 与**伪事件月 M**（从正样本事件年/月份分布采样，与单元无关）——窗口位置正负同分布，无泄漏；
+   - `ant_1m/ant_3m/ant_6m/wet_season_frac` 由 GEE 逐月降雨（m01..m12）按事件月前 N 个月累计计算，对准主要诱因（89% 为降雨、70.5% 事件在汛期 6-9 月）。
+3. **特征去泄漏（历史修正）**：早期"按事件日期截断"的时序特征会编码标签（基线 AUC 虚高到 1.0 的根源）；复发特征与标签同源（循环论证）；水位特征改用"高程 × 库水位"的淹没交互特征。详见 3.3 节。
+4. **P0 特征工程（评审问题 2）**：几何/淹没/坡向特征冗余重构——两两相关 >0.9 的特征对数从 **15 降到 0**，VIF 从 1e12 降到 <30（详见 3.2 节）。
+5. **负样本设计（评审问题 1）**：全域负样本（25222）改为**时空邻近策略**，提供硬采样与软采样两种口径，并用**采样池 AUC** 评估同环境判别力（详见 6.2 节）。
+6. **模型**：GraphSAGE 学局部空间依赖 + 全局 Transformer 学长程依赖（方案 B，推荐）。
 
 ### 1.1 技术栈
 
@@ -21,7 +30,7 @@
 | 空间数据处理 | GeoPandas、Shapely、Rasterio、Rasterstats |
 | 出图 | QGIS 矢量分级填色（RdYlGn_r） |
 
-### 1.2 数据概况（研究期 2003-2021）
+### 1.2 数据概况（研究期 2003-2021，矩阵 2000-2021）
 
 | 指标 | 数值 |
 |------|------|
@@ -29,7 +38,11 @@
 | **研究单元（研究期建模人群）** | **25884** |
 | 研究期正样本（有滑坡） | **662**（846 − 184 仅蓄水前滑坡） |
 | 负样本 | 25222 |
+| 多次滑坡单元 | 74（占正样本 11.2%，中位复发间隔 2.8 年） |
 | 剔除单元 | 184（首次滑坡 2000-2002 且研究期未再发） |
+| 年度矩阵 | NDVI（`ndvi_<year>`），**2000-2021 共 22 年**（k=2 定案后不再需要 1997-1999） |
+| 月度降雨矩阵 | `rain_m01_<year>..rain_m12_<year>`，**2000-2021 共 264 列**（GEE v5 逐月导出） |
+| 县级归属 | `features/county_units.csv`（25884 单元，覆盖 12+ 县） |
 
 ---
 
@@ -38,99 +51,116 @@
 ```
 subjects/
 ├── main.py                        # 一键流程编排（data → graph → baseline → train → predict）
-├── baseline_xgb.py                # XGBoost 基线（5 折空间 CV + 特征重要性）
+├── baseline_xgb.py                # XGBoost 基线（分折方式 × 负采样三口径，全单元/采样池双 AUC）
+├── cross_county_validate.py       # 跨县留出验证（70/30 按正样本占比分县，多组随机划分）
 ├── train_gnn.py                   # GraphSAGE + Transformer 训练（K 折 CV + 最终模型）
 ├── predict_gnn.py                 # 全图推理 → 5 级易发性 → 回填 shapefile
+├── visualize_baseline.py          # 基线结果可视化（历史结果自动回退 results/archive/）
 ├── requirements.txt
 │
 ├── src/                           # 核心模块
-│   ├── config.py                  # 路径 + 22 维特征定义 + 超参数（纯 Python）
+│   ├── config.py                  # 路径 + 特征定义（事件窗口 19 维主线）+ 负采样/分折参数
 │   ├── model.py                   # SlopeUnitGNN A/B/C + 自带 SAGEConv
-│   ├── dataset.py                 # 特征表/图加载、MinMax、空间 K-Fold
+│   ├── dataset.py                 # 特征表/图加载、MinMax、分折（KMeans/按县/跨县）、
+│   │                              # 负采样三口径（硬采样/邻近掩码/软加权）
 │   ├── metrics.py                 # AUC、Recall@Top10%
-│   └── train.py                   # 训练循环、K 折 CV、OOF 外推、最终模型
+│   └── train.py                   # 训练循环、K 折 CV、OOF 外推、最终模型（负采样掩码/加权）
 │
 ├── tills/                         # 数据准备（一次性脚本）
 │   ├── extract_landslide_points.py    # Excel 滑坡点 → CSV（筛 2000-2021）
 │   ├── join_landslide_dates.py        # 点关联单元：计数 + 首末日期 + 研究期字段
-│   ├── filter_study_units.py          # 研究期 2003-2021 单元过滤（方案 B2）
-│   ├── extract_terrain_features.py    # 地形 5 维（zonal mean）
-│   ├── extract_temporal_features.py   # NDVI/降雨 8 维（全窗口，矩阵缓存优先）
-│   ├── extract_water_features.py      # 淹没 6 维（高程×库水位，无截断）
-│   ├── merge_features.py              # 合并 22 维特征表 + 标签
+│   ├── filter_study_units.py          # 研究期 2003-2021 单元过滤
+│   ├── extract_terrain_features.py    # 地形 6 维（含 aspect_sin/aspect_cos 循环分量）
+│   ├── extract_temporal_features.py   # NDVI/降雨 8 维（全窗口，对照口径）
+│   ├── extract_water_features.py      # 淹没 2 列（config 取 inundation_fraction）
+│   ├── merge_features.py              # 合并静态特征表 + 标签（对照口径 features.csv）
+│   ├── build_event_window_features.py # ★ 事件窗口 19 维特征表（主线，含 ant_*）
 │   ├── build_graph.py                 # 图构建（共享边界邻接 / Delaunay）
-│   ├── import_gee_unit_stats.py       # 导入 GEE 方案 C 的单元统计 CSV → 矩阵缓存
-│   ├── validate_ndvi_resolution.py    # 30m vs 90m 分辨率验证
-│   ├── gee_export_unit_stats.js       # GEE：逐年单元统计 CSV 导出（方案 C，推荐）
-│   └── gee_export_ndvi_validation.js  # GEE：30m/90m 分辨率验证导出
+│   ├── import_gee_unit_stats.py       # 导入 GEE 单元统计 CSV → 年度+月度矩阵缓存
+│   ├── join_county.py                 # 单元→县级归属（overlay 面积最大归属）
+│   ├── analyze_negatives.py           # 负采样质量诊断（候选规模/难负样本性质）
+│   ├── fix_slope_units.py             # 无效几何修复（一次性）
+│   └── gee_export_unit_stats.js       # GEE：逐年单元统计导出（含逐月 m01..m12，v5）
 │
 ├── data/
 │   ├── terrain/Terrain_MultiBand.tif  # 5 波段地形栅格
 │   ├── slope_units/                   # shp + 计数表 + 研究单元文件
 │   ├── landslide/                     # 滑坡点 Excel / CSV
 │   ├── water/水位.xlsx                # 逐日库水位
-│   └── gee/unit_stats/                # GEE 导出的单元统计 CSV（22 年）
+│   ├── gee/unit_stats_month/          # GEE 导出的年度+月度 CSV（2000-2021）
+│   ├── geology/lithology/             # 中国岩性分布（属性不可用，暂缓）
+│   └── admin/county/                  # 全国县级行政区（用于分折/跨县验证）
 │
-├── features/                      # 生成数据（矩阵缓存、特征表、图、OOF）
+├── features/                      # 生成数据（矩阵、特征表、图、县归属）
 ├── models/                        # 模型权重 + 归一化参数
 ├── predictions/                   # 易发性 shp + 统计 + 示意图
-├── results/                       # 实验记录（baseline/train JSON）
+├── results/                       # 当前实验结果 JSON（矩阵）
+├── results/archive/               # 历史实验 JSON（对照/K 敏感性/特征选择/消融）
 └── docs/
-    ├── PROJECT_EXPLANATION.md     # 本文档
-    ├── QUICKSTART.md              # 快速上手指南
-    ├── OPTIMIZATION_PATHS.md      # 早期方案设计文档（含原 28 维设计，部分已被去泄漏修正替代）
-    └── WORK_PLAN.md               # 执行计划
+    ├── PROJECT_EXPLANATION.md     # 本文档（19 维定稿版）
+    ├── EXPERIMENT_RESULTS.md      # ★ 全部实验记录、结果表与复现命令
+    ├── FEATURES_EVENT_WINDOW_K2.md # 事件窗口特征说明（待同步 19 维）
+    ├── QUICKSTART.md / WORK_PLAN.md / OPTIMIZATION_PATHS.md
+    └── archive/                   # 一次性验证（NDVI 30m/90m 分辨率验证等）
 ```
 
 ---
 
-## 3. 特征工程（22 维）
+## 3. 特征工程（当前主线：19 维）
 
 ### 3.1 特征总表
 
 | 类别 | 维度 | 特征 | 计算方式 | 物理意义 |
 |------|------|------|----------|----------|
-| 静态地形 | 5 | `elevation_mean` | 单元内高程均值（SRTM, m） | 高程带位置，距库水位涨落区间关系 |
-| | | `slope_mean` | 单元内坡度均值（°） | 越陡下滑分力越大，经典易发性因子 |
-| | | `aspect_mean` | 单元内坡向均值（0-360°） | 日照/干湿差异（循环变量，普通均值有环绕误差，已知局限） |
-| | | `TRI_mean` | 地形粗糙度指数均值 | 地表起伏，地形破碎度 |
+| 静态地形 | 6 | `elevation_mean` | 单元内高程均值（SRTM, m） | 高程带位置，距库水位涨落区间关系 |
+| | | `slope_mean` | 单元内坡度均值（°） | 越陡下滑分力越大 |
+| | | `aspect_sin` / `aspect_cos` | 单元内坡向 sin/cos 循环均值（P0：替代 0-360 普通均值，消除环绕误差） | 坡向日照/干湿差异 |
+| | | `TRI_mean` | 地形粗糙度指数均值 | 地表起伏、地形破碎度 |
 | | | `curvature_mean` | 单元内曲率均值 | 凸坡应力集中 / 凹坡积水饱水 |
-| 静态几何 | 3 | `area` | 单元面积（m²，UTM 投影） | 单元尺度 |
-| | | `compactness` | 4π·面积/周长² | 形状圆整度 |
-| | | `shape_index` | 周长/(2√(π·面积)) | 形状复杂度，与地形破碎相关 |
-| NDVI 时序 | 4 | `long_trend_slope` | 22 年 NDVI 线性趋势斜率 | 植被长期退化趋势 |
-| | | `long_cv` | NDVI 标准差/均值 | 植被年际稳定性 |
-| | | `recent_2yr_ndvi_drop` | 近 2 年均值 − 长期均值 | 近期植被异常下降 |
-| | | `max_interannual_change` | 年际最大 \|ΔNDVI\| | 植被突变（如坡体位移破坏植被） |
-| 降雨时序 | 4 | `annual_max_rain_mean` | 年最大日降雨的多年均值（mm） | 极端降雨强度背景 |
-| | | `heavy_rain_trend` | 暴雨日数（>50mm/日）线性趋势 | 极端降雨频率变化 |
-| | | `recent_2yr_maxdaily` | 近 2 年最大日降雨（mm） | 近期极端降雨 |
-| | | `antecedent_30d_max` | 22 年"年最大 30 日累计"的最大值（mm） | 前期连续降雨饱水程度 |
-| 淹没（水位） | 6 | `inundation_months_avg` | 年均淹没月数（水位≥单元高程的天数/30.4） | 淹没浸泡时长 |
-| | | `inundation_fraction` | 2003-2021 被淹没时间比例 | 淹没频率 |
-| | | `inundation_episodes` | 淹没期次数（间隔≤5 天合并） | 干湿交替次数 |
-| | | `max_inundation_depth` | max(水位−单元高程, 0)（m） | 历史最大淹没深度 |
-| | | `mean_inundation_depth` | 淹没期间平均淹没深度（m） | 淹没强度 |
-| | | `inundation_annual_std` | 年淹没月数的年际波动（月） | 淹没年际变率 |
-| **合计** | **22** | | | |
+| 静态几何 | 2 | `area` | 单元面积（m²，UTM 投影） | 单元尺度（单变量 AUC 最高 0.631） |
+| | | `shape_index` | 周长/(2√(π·面积)) | 形状复杂度（P0：删 compactness，其 ≡ 1/shape_index²） |
+| 淹没 | 1 | `inundation_fraction` | 2003-2021 被淹没时间比例（P0：6→1 重构） | 淹没浸泡频率（与 145-175m 调度带相关） |
+| 事件前 K 窗口 | 6 | `k2_ndvi_mean` | 事件前 2 年 NDVI 年均值平均 | 事件前植被状态（XGB 最重要特征） |
+| | | `k2_ndvi_change` | 事件前 2 年 NDVI 均值 − 长期均值 | 近期植被退化（负值=退化） |
+| | | `k2_maxdaily_max` | 事件前 2 年最大日降雨峰值（mm） | 事件前极端降雨强度 |
+| | | `k2_max30d_max` | 事件前 2 年 30 日累计降雨峰值（mm） | 连续降雨饱水 |
+| | | `k2_heavydays_sum` | 事件前 2 年暴雨日数（>50mm/日）之和 | 极端降雨频率 |
+| | | `k2_cumulative_mean` | 事件前 2 年年累计降雨均值（mm） | 湿润背景 |
+| 前期降雨 | 4 | `ant_1m` / `ant_3m` / `ant_6m` | 事件月前 1/3/6 个月累计降雨（GEE 逐月波段） | 前期降雨触发/饱水（对准 89% 降雨诱因） |
+| | | `wet_season_frac` | 前一年汛期(5-9月)累计 / 年累计 | 汛期集中度 |
+| **合计** | **19** | | | |
 
-### 3.2 去泄漏设计原则（重要）
+### 3.2 P0 特征重构记录（评审问题 2：去冗余）
 
-**已删除/修正的设计（早期版本）**：
+| 重构 | 依据（实测） | 结果 |
+|------|--------------|------|
+| 几何：删 `compactness` | `compactness = 1/shape_index²` 精确恒等（差值 6.7e-16） | 3→2 维 |
+| 坡向：`aspect_mean` → `aspect_sin/cos` | 0-360 普通均值有环绕误差 | 循环分量，消除环绕误差 |
+| 淹没：6 → 1 | 旧 6 特征两两相关 >0.99、VIF=1e12；初版 2 个（fraction+zone_pos）仍相关 0.978 | 只留 `inundation_fraction` |
+| 前期降雨：删 `ant_3m_max` | 与 ant_3m 相关 0.925 且单变量 AUC 最弱 | 5→4 维 |
 
-| 问题 | 表现 | 修正 |
-|------|------|------|
-| 复发特征（recurrence_count 等 4 维） | 特征来源（滑坡清单）与标签同源，\|r(label)\|=0.94，循环论证 | **删除** |
-| 水位"暴露累计"特征（exposure_months、rapid_drawdown_events、water_range_total 等 8 维） | 库水位是全局序列，单元差异仅来自截断日期 → 特征≈编码"是否滑坡/事件多早"，\|r\|=0.58~0.98 | **重设计**为高程×水位淹没交互特征（全窗口，同口径） |
-| 时序特征按事件截断（NDVI/降雨） | 正样本窗口短（趋势被放大）、负样本窗口长（22 年）；"事件前 2 年"与"2019-2020"选段不同 → 单变量 AUC 达 0.87 | **取消截断**，统一全窗口 2000-2021；"事件前"特征改名"近 2 年" |
+**效果**：两两 \|r\|>0.9 特征对数 **15 → 0**，VIF 最大值 **1e12 → 29**（残留 TRI/曲率是 slope 派生的历史相关）；AUC 持平（0.7096 → 0.7099）但特征集更干净、重要性可解释。
 
-**修正效果**：基线 AUC 从虚高的 **1.0000 → 0.979 → 0.6944 ± 0.045**（真实水平）。特征重要性分散、无单特征垄断，说明模型学到的是环境关系而非标签捷径。
+### 3.3 事件窗口口径（当前主线，防泄漏设计）
 
-### 3.3 单元集合（方案 B2）
+- **参考年 T**：正样本 = 研究期首次滑坡年份；负样本 = 从正样本年份分布**频率匹配采样**（seed=42，与单元无关）；
+- **参考月 M**：正样本 = 真实事件月；负样本 = 从正样本月份分布频率匹配采样（ant_* 窗口位置正负同分布）；
+- 时序特征只用 `[2000, T−1]` 的数据（K 窗口取 `[T−2, T−1]`，ant_* 取事件月前 N 个月），杜绝未来信息；
+- 1997-1999 数据**不再使用**（k=2 定案：T_min=2003 时 K 窗口最早用到 2001、ant_* 最早用到 2002-07）。
 
-- **保留**：无滑坡单元（负样本）+ 研究期 2003-2021 内有滑坡的单元（正样本，含蓄水前首次、研究期复发的单元）；
+### 3.4 数据源：GEE 逐月降雨（路径 A）
+
+- `tills/gee_export_unit_stats.js`（v5）：每单元逐月累计降雨波段 **m01..m12** + 原有年度统计（maxdaily/cumulative/max30d/heavydays），一年一个 CSV；
+- 导出年份 **2000-2021**（22 个任务），存放 `data/gee/unit_stats_month/`；
+- 本地 `import_gee_unit_stats.py` 导入 → `rain_unit_matrix.csv` 新增 264 月度列；
+- 两个 GEE 坑已修：`Image.rename` 不能接收服务端 `ee.String`；`toBands()` 会给波段名加索引前缀（0_m01…）——改用客户端字符串数组 + `forEach + addBands`。
+
+### 3.5 单元集合
+
+- **保留**：无滑坡单元（负样本）+ 研究期 2003-2021 内有滑坡的单元（正样本）；
 - **剔除**：只在蓄水前（2000-2002）滑过坡、研究期未再发的单元（184 个）；
-- 研究单元行序与全量 shp 一致（`data/slope_units/study_units_fixed.shp`），保证特征表 ↔ 图节点对齐。
+- 研究单元行序与全量 shp 一致，保证特征表 ↔ 图节点对齐；
+- **县级归属**：`tills/join_county.py` 用 overlay 按相交面积最大者归属（`features/county_units.csv`），覆盖 12+ 县（云阳/涪陵/巫山/奉节/万州/忠县/丰都等）。
 
 ---
 
@@ -141,7 +171,7 @@ subjects/
 - **节点**：25884 个研究单元，节点编号 = 研究单元 shp 行序（与特征表行序一一对应）；
 - **边**（默认）：**共享边界邻接**（STRtree 空间索引 + 边界相交判断）；
 - **备选**：质心 Delaunay（`--method delaunay`）；孤立节点自动加自环；
-- 输出 `features/graph.npz`（edge_index 2×E）。
+- 输出 `features/graph.npz`（edge_index 2×E，实际 149216 条边，平均度 5.76）。
 
 ---
 
@@ -150,13 +180,13 @@ subjects/
 ### 5.1 总体设计
 
 ```
-输入: 图 G(V, E)，V=25884 单元 × 22 维特征
+输入: 图 G(V, E)，V=25884 单元 × 19 维特征
     ↓
-Linear(22 → 64)
+Linear(19 → 64)
     ↓
 SAGEConv ×2（均值聚合，2 跳邻域）        ← 局部空间依赖
     ↓
-可学习位置编码 + Transformer Encoder ×2   ← 全局长程依赖（节点间自注意力）
+可学习位置编码 + Transformer Encoder ×2   ← 全局长程依赖（按 512 节点/批拆分）
     ↓
 FC(64→32→1) + Sigmoid → 每单元滑坡概率 [0,1]
 ```
@@ -167,30 +197,48 @@ FC(64→32→1) + Sigmoid → 每单元滑坡概率 [0,1]
 |------|------|--------|----------|------|
 | **A** | SAGEConv×3 → FC | ~40K | 3 跳视野 | 调试/基线 |
 | **B**（推荐） | SAGEConv×2 + Transformer Encoder×2（4 头） | ~80K | 真正全局 O(N²)（按批拆分） | 论文正式方案 |
-| **C** | SAGEConv×2 + Performer 线性注意力 | ~60K | 全局 O(N) | 生产级（可选依赖，未装自动回退 B） |
+| **C** | SAGEConv×2 + Performer 线性注意力 | ~60K | 全局 O(N) | 生产级（可选依赖） |
 
-实现要点（`src/model.py`）：自带 SAGEConv（`out = W_self·x_i + W_neigh·mean(邻居)`），等价 torch_geometric SAGEConv，免安装；方案 B 全图注意力按 512 节点/批拆分控制显存。
+> 注意：Transformer 的"全局"是**表达能力**维度（节点间特征互注意力）；负采样是**任务定义**维度（哪些样本带标签参与训练）——两者正交，负采样实验结论不依赖架构。
 
 ---
 
 ## 6. 训练策略
 
-### 6.1 空间 K-Fold
+### 6.1 分折方式（评估协议）
 
-对单元质心做 K-Means 聚类成 5 个空间连续块（消除空间自相关导致的 AUC 虚高；KMeans 因环境 BLAS 不可用时自动回退"空间条带划分"）。
+| 方式 | 做法 | 结果（XGBoost×全域） |
+|------|------|----------------------|
+| `spatial_kmeans`（默认） | 质心 K-Means 聚类成 5 折（消除空间自相关虚高） | 0.7099 ± 0.0226 |
+| `admin`（按县分折） | 按县级归属分折，贪心均衡各折正样本（论文规范） | 0.7409 ± 0.0215 |
+| `random` | 随机划分（对照，一般高估） | — |
+| **跨县留出**（`cross_county_validate.py`） | 70/30 按正样本占比随机分县，测试县完全留出，多组取均值 | **0.7226 ± 0.0162**（全域） |
 
-### 6.2 类别不平衡
+### 6.2 负样本三口径（评审问题 1）
 
-正样本 662 / 25884（2.6%）：**加权 BCE**，`pos_weight = 负样本数/正样本数 ≈ 38`（按实际数据计算）。
+| 口径 | 做法 | 训练负样本/折 |
+|------|------|--------------|
+| `none`（全域，对照） | 全部无滑坡单元参与 | ~19218 |
+| `proximity`（时空邻近硬采样） | 每个正样本在 4km 邻域内抽 k=2 个无滑坡单元（并集去重，**按折采样防泄漏**） | ~1072 |
+| `soft`（软负采样） | 不删样本仅加权：邻近负样本权重 1.0、远区 λ=0.2（重要性加权，λ∈[0,1] 构成连续谱系） | 全部（ESS≈16733） |
 
-### 6.3 超参数
+**双指标评估**：
+- **全单元 AUC**：测试折全部单元（与历史口径可比，反映空间泛化）；
+- **采样池 AUC**：测试折"正样本 + 采样负样本"子集（同环境判别力，训练目标与评估人群自洽）。
+
+### 6.3 类别不平衡
+
+正样本 662 / 25884（2.6%）：**加权 BCE**，`pos_weight` 按实际参与训练的样本重算（全域 ≈38；硬采样后 ≈2~3）。
+
+### 6.4 超参数
 
 hidden_dim=64、Transformer 2 层 4 头、dropout 0.3、weight_decay 1e-4、lr 1e-3（Adam）、早停 patience=20（监控 val AUC）、MinMax 归一化（只在训练折拟合）。
 
-### 6.4 训练入口
+### 6.5 训练入口
 
 ```bash
-python train_gnn.py --plan B --folds 5 --epochs 200 --patience 20
+python train_gnn.py --plan B --folds 5 --fold-method admin \
+    --neg-sampling soft --neg-km 4 --neg-lam 0.2
 ```
 
 输出：`results/train_gnn_<plan>.json`、`features/oof_predictions.csv`（OOF 外推）、`models/best_<plan>.pth` + `scaler_<plan>.npz`。
@@ -203,10 +251,11 @@ python train_gnn.py --plan B --folds 5 --epochs 200 --patience 20
 python predict_gnn.py --plan B --method fixed     # 固定阈值 0.2/0.4/0.6/0.8
 ```
 
-- 全图 25884 节点前向 → 概率 → 5 级（fixed 或 quantile）→ 回填 `study_units_fixed.shp` 的 `ls_prob`/`ls_level` 字段；
+- 全图 25884 节点前向 → 概率 → 5 级（fixed 或 quantile）→ 回填 `study_units_fixed.shp`；
 - 输出：`predictions/susceptibility_units.shp`、`statistics.txt`、`susceptibility_map.png`；
 - QGIS 按 `ls_level` 用 RdYlGn_r 分级填色出图；
-- 评估与出图分离：交叉验证时保存 OOF 外推预测（每个单元的概率来自没训练过它的模型）。
+- 评估与出图分离：交叉验证时保存 OOF 外推预测（每个单元的概率来自没训练过它的模型）；
+- **负采样不影响出图**：负采样只决定哪些样本参与训练；全图推理仍覆盖全部 25884 单元。
 
 ---
 
@@ -215,32 +264,33 @@ python predict_gnn.py --plan B --method fixed     # 固定阈值 0.2/0.4/0.6/0.8
 ### 8.1 总览
 
 ```
-GEE 导出（方案 C：逐年单元统计 CSV） → 本地导入矩阵 → 特征提取 → 图 → 基线 → 训练 → 出图
+GEE 导出（2000-2021 单元统计，含逐月 m01..m12） → 导入矩阵 → 静态特征提取
+→ 合并对照特征表 → 事件窗口特征构建（19 维主线） → 县级归属 → 图 → 基线 → 训练 → 出图
 ```
 
-### 8.2 GEE 侧（2 个脚本）
+### 8.2 本地数据准备（`python main.py --stage data`）
 
-1. **分辨率验证**（一次性）：`tills/gee_export_ndvi_validation.js` 导出单年 30m/90m NDVI → 本地 `validate_ndvi_resolution.py` 对比单元均值，**r>0.99 则用 90m**（实测 r=0.9959）；
-2. **全量导出**（推荐方案 C）：`tills/gee_export_unit_stats.js` 逐年按斜坡单元 `reduceRegions` 算 5 个统计（ndvi / 年最大日降雨 / 年累计 / 年最大30日 / 暴雨日数），导出小 CSV（一年一个任务，只含有用列：`Id, ndvi, maxdaily, cumulative, max30d, heavydays`）。
-
-### 8.3 本地数据准备（`python main.py --stage data` 一键完成）
-
-| 步骤 | 命令（脚本） | 产物 |
+| 步骤 | 命令 | 产物 |
 |------|------|------|
 | 滑坡点筛选 2000-2021 | `extract_landslide_points.py` | `data/landslide/landslide_points_2000_2021.csv` |
-| 点关联单元（计数+首末日期+研究期字段） | `join_landslide_dates.py` | `data/slope_units/slope_units_count.csv` |
-| 研究期单元过滤（方案 B2） | `filter_study_units.py` | `study_units_fixed.shp` + `study_units_count.csv` |
-| GEE CSV 导入矩阵缓存（22 年，可循环） | `import_gee_unit_stats.py --year YYYY` | `features/ndvi_unit_matrix.csv`、`rain_unit_matrix.csv` |
-| 地形特征 5 维 | `extract_terrain_features.py` | `features/terrain_features.csv` |
-| NDVI/降雨时序 8 维（全窗口） | `extract_temporal_features.py` | `features/temporal_features.csv` |
-| 淹没特征 6 维 | `extract_water_features.py` | `features/water_features.csv` |
-| 合并 22 维特征表 + 标签 | `merge_features.py` | `features/features.csv`（25884 行 × 30 列） |
+| 点关联单元 | `join_landslide_dates.py` | `slope_units_count.csv` |
+| 研究期过滤 | `filter_study_units.py` | `study_units_fixed.shp` |
+| GEE CSV 导入（22 年） | `import_gee_unit_stats.py --year YYYY --src data/gee/unit_stats_month` | `ndvi_unit_matrix.csv`、`rain_unit_matrix.csv`（+264 月度列） |
+| 地形 6 维（含 aspect_sin/cos） | `extract_terrain_features.py` | `terrain_features.csv` |
+| NDVI/降雨时序 8 维（对照口径） | `extract_temporal_features.py` | `temporal_features.csv` |
+| 淹没 2 列 | `extract_water_features.py` | `water_features.csv` |
+| 合并静态特征表 + 标签 | `merge_features.py` | `features/features.csv`（静态源） |
+| **事件窗口 19 维特征表（主线）** | **`build_event_window_features.py --k 2 --start-year 2000 --seed 42`** | **`features/event_window_features_k2.csv`** |
+| 单元→县级归属 | `join_county.py` | `features/county_units.csv` |
+| 负采样质量诊断 | `analyze_negatives.py` | 候选规模/难负样本性质报告 |
 
-### 8.4 建模与出图
+### 8.3 建模与出图
 
 ```bash
 python main.py --stage graph       # 图构建
-python main.py --stage baseline    # XGBoost 基线（AUC≈0.69）
+python baseline_xgb.py --features-csv features/event_window_features_k2.csv \
+    --folds 5 --method admin --neg-sampling soft --neg-km 4 --neg-lam 0.2   # 主配置基线
+python cross_county_validate.py --splits 5 --test-frac 0.3 --seed 42        # 跨县留出
 python main.py --stage train --plan B --folds 5
 python main.py --stage predict --plan B
 ```
@@ -255,17 +305,32 @@ conda activate landslide
 pip install -r requirements.txt
 ```
 
-（不需要 torch-geometric；方案 C 可选 `pip install performer-pytorch`。注意：Windows 环境下若 numpy 的 OpenBLAS DLL 损坏会导致 lstsq/sklearn 崩溃 `0xc06d007f`，重装 numpy 即可。）
+（不需要 torch-geometric；方案 C 可选 `pip install performer-pytorch`。Windows 下 numpy 的 OpenBLAS DLL 损坏会导致 lstsq/sklearn 崩溃 `0xc06d007f`，重装 numpy 即可。）
 
 ---
 
 ## 10. 常见问题
 
-**Q: 基线 AUC 只有 0.69，正常吗？**
-正常——0.69 是去泄漏后的真实水平。之前 1.0/0.98 都是截断/复发特征泄漏的假象。可通过消融实验（去淹没特征/去时序/去地形）定位各组贡献并进一步调优。
+**Q: 当前基线 AUC 是多少？**
+19 维定稿（XGBoost 5 折）：KMeans×全域 **0.7099 ± 0.0226**、admin×全域 **0.7409 ± 0.0215**、admin×软采样 **0.7375 ± 0.0143**、跨县留出 **0.7226 ± 0.0162**。全部结果与复现命令见 `docs/EXPERIMENT_RESULTS.md`。
 
-**Q: 特征为什么不用"事件前截断"了？**
-截断会让正/负样本的窗口长度与选取年份不同，把标签信息编进特征（泄漏）。全窗口环境协变量是易发性建模的标准做法；若要时序预测口径，需配套"匹配控制"与时间验证设计，超出当前范围。
+**Q: 负样本为什么要改成时空邻近？全域负样本不行吗？**
+全域口径下模型钻"远区高山单元好分"的空子，**同环境判别力被高估约 0.04**（采样池 AUC 0.667~0.699 < 全域全单元 0.71~0.74）。时空邻近（4km 邻域抽负样本）让模型学"同样环境下谁更危险"，是评审问题 1 的直接回应。
 
-**Q: 水位特征只有淹没交互 6 个？**
-是。库水位是全局同一条序列，不结合单元高程就没有单元间差异；"暴露累计"统计又会泄漏。高程×水位交互是既合法又物理正确的消落带专属特征。
+**Q: 硬采样和软采样有什么区别？选哪个？**
+硬采样（`proximity`）删样本，按县分折下训练数据缩水会导致全单元 AUC 掉（0.7409→0.7199）；软采样（`soft`，λ=0.2）不删样本仅加权，全单元 AUC 保住（0.7375）且采样池 AUC 更高（0.7194）——**主配置推荐 admin × soft**。λ 敏感性（0.2/0.5）结果一致，结论稳健。
+
+**Q: 负样本没有滑坡日期，事件窗口怎么取？**
+负样本从正样本事件年分布频率匹配采样"伪事件年 T"、从事件月分布采样"伪事件月 M"，窗口 [T−2, T−1] 与事件月前 N 个月。正负样本窗口位置同分布 → 无泄漏。
+
+**Q: 水位特征为什么只剩 1 个？**
+库水位是全局同一条序列，不结合单元高程就没有单元间差异。旧 6 个淹没特征（fraction/episodes/深度等）两两相关 >0.99、VIF=1e12——本质是"高程带"的单调变换，P0 重构后只留 `inundation_fraction`。
+
+**Q: 为什么说不需要 1997-1999 数据了？**
+k=2 定案后：事件最早 2003，K 窗口最早用到 2001，ant_* 最早用到 2002-07。1997-1999 月度降雨导出也不会被任何特征引用。NDVI 长期基准现从 2000 起（`--start-year 2000`）。
+
+**Q: 分折方式对结果影响大吗？**
+大。分折定义"谁训练谁测试"：按县分折（0.7409）> 跨县留出（0.7226）> KMeans（0.7099）。三种口径的测试人群定义不同，论文中作为方法对比呈现，主验证建议用跨县留出（训练集最大化、少样本下更稳）。
+
+**Q: 多次滑坡单元怎么处理？**
+事件年取研究期首次滑坡年份；滑坡次数（74 个多发单元）**不进模型**（与标签同源会泄漏），可用于事后分层评估。
