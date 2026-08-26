@@ -41,14 +41,16 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from src.config import (END_YEAR, STUDY_UNITS_COUNT_CSV, FEATURES_CSV,
-                        NDVI_MATRIX_CSV, RAIN_MATRIX_CSV)
+                        NDVI_MATRIX_CSV, RAIN_MATRIX_CSV, LANDUSE_MATRIX_CSV,
+                        LANDUSE_FEATURES)
 
-# 静态特征列（沿用 features.csv 中的列名；P0 重构后与 src/config.py STATIC_FEATURES 保持一致）
+# 静态特征列（沿用 features.csv 中的列名；P0 重构 + 水系后与 src/config.py STATIC_FEATURES 保持一致）
 STATIC_FEATURES = [
     'elevation_mean', 'slope_mean', 'aspect_sin', 'aspect_cos',
     'TRI_mean', 'curvature_mean',
     'area', 'shape_index',
     'inundation_fraction',
+    'river_dist_m', 'mainstream_dist_m', 'drainage_density',
 ]
 
 
@@ -137,7 +139,7 @@ def main():
     if start_year > END_YEAR:
         raise ValueError('start_year 不能大于 END_YEAR')
     k_features = make_k_features(k)
-    all_features = STATIC_FEATURES + k_features + ANTECEDENT_FEATURES
+    all_features = STATIC_FEATURES + k_features + ANTECEDENT_FEATURES + LANDUSE_FEATURES
 
     out_csv = ROOT / 'features' / f'event_window_features_k{k}.csv'
 
@@ -201,6 +203,16 @@ def main():
         print(f'月度降雨列覆盖: {len(present_mm)}/{len(mm_cols_all)}'
               f'（{present_mm[0]} ~ {present_mm[-1]}）')
 
+    # ---------- 3b. 土地利用年度矩阵（CLCD，T−1 截断取值） ----------
+    lu_mat = pd.read_csv(LANDUSE_MATRIX_CSV)
+    lu_mat['unit_id'] = lu_mat['unit_id'].astype(str)
+    lu_crop_cols = [f'lu_cropland_{y}' for y in years]
+    lu_built_cols = [f'lu_builtup_{y}' for y in years]
+    lu_left = left.merge(lu_mat[['unit_id'] + lu_crop_cols + lu_built_cols],
+                         on='unit_id', how='left')
+    lu_crop_arr = lu_left[lu_crop_cols].values.astype(np.float64)   # (N, n_years)，索引 = year-2000
+    lu_built_arr = lu_left[lu_built_cols].values.astype(np.float64)
+
     # ---------- 4. 逐单元计算 K 窗口特征 ----------
     recs = []
     for i in range(len(su)):
@@ -209,6 +221,14 @@ def main():
         r = build_row_features(nd_arr[i], md_arr[i], m30_arr[i], hd_arr[i], cu_arr[i],
                                T, k, start_year)
         r.update(build_monthly_features(mm_arr[i], cu_arr[i], T, M, start_year))
+        # 土地利用：T−1 年（事件前一年，正负样本同口径）
+        iT1 = T - 1 - start_year
+        if 0 <= iT1 < len(years):
+            r['cropland_frac'] = lu_crop_arr[i, iT1]
+            r['builtup_frac'] = lu_built_arr[i, iT1]
+        else:
+            r['cropland_frac'] = np.nan
+            r['builtup_frac'] = np.nan
         r['unit_id'] = su['unit_id'].iloc[i]
         recs.append(r)
     df_new = pd.DataFrame(recs)
@@ -227,7 +247,7 @@ def main():
     df.to_csv(out_csv, index=False, encoding='utf-8-sig')
     print(f'已导出: {out_csv}（{df.shape[0]} 行 × {df.shape[1]} 列）')
     print(f'特征数: {len(all_features)}（静态 {len(STATIC_FEATURES)} + K窗口 {len(k_features)}'
-          f' + 前期降雨 {len(ANTECEDENT_FEATURES)}）')
+          f' + 前期降雨 {len(ANTECEDENT_FEATURES)} + 土地利用 {len(LANDUSE_FEATURES)}）')
     print('缺失统计:')
     print(df[all_features].isna().sum().to_string())
 

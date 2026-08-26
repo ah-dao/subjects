@@ -26,9 +26,9 @@ sys.path.insert(0, str(ROOT))
 
 from src.config import (study_count_csv_path, study_shp_path,
                         TERRAIN_FEATURES_CSV, TEMPORAL_FEATURES_CSV,
-                        WATER_FEATURES_CSV, FEATURES_CSV,
+                        WATER_FEATURES_CSV, WATER_NETWORK_FEATURES_CSV, FEATURES_CSV,
                         ALL_FEATURES, STATIC_TERRAIN_FEATURES, GEOMETRY_FEATURES,
-                        NDVI_FEATURES, RAIN_FEATURES, WATER_FEATURES)
+                        NDVI_FEATURES, RAIN_FEATURES, WATER_FEATURES, HYDRO_FEATURES)
 
 
 def geometry_features(shp_path):
@@ -48,7 +48,8 @@ def main():
     shp = study_shp_path()
     if not su_csv.exists():
         raise FileNotFoundError(f'未找到 {su_csv}（先在 QGIS 做滑坡计数并导出）')
-    for f in (TERRAIN_FEATURES_CSV, TEMPORAL_FEATURES_CSV, WATER_FEATURES_CSV):
+    for f in (TERRAIN_FEATURES_CSV, TEMPORAL_FEATURES_CSV, WATER_FEATURES_CSV,
+              WATER_NETWORK_FEATURES_CSV):
         if not f.exists():
             raise FileNotFoundError(f'缺少特征文件: {f}（先运行 tills/extract_*.py）')
 
@@ -71,6 +72,7 @@ def main():
         '地形': (TERRAIN_FEATURES_CSV, STATIC_TERRAIN_FEATURES),
         '时序': (TEMPORAL_FEATURES_CSV, NDVI_FEATURES + RAIN_FEATURES),
         '水位': (WATER_FEATURES_CSV, WATER_FEATURES),
+        '水系': (WATER_NETWORK_FEATURES_CSV, HYDRO_FEATURES),
     }
     # 基础列 = unit_id + 几何特征（复发特征已删除：与标签同源属泄漏）
     merged = su[['unit_id'] + GEOMETRY_FEATURES].copy()
