@@ -26,7 +26,7 @@ from shapely.strtree import STRtree
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src.config import (STUDY_SLOPE_UNITS_SHP, WATER_NETWORK_FEATURES_CSV,
+from src.config import (SLOPE_UNITS_SHP, WATER_NETWORK_FEATURES_CSV,
                         DATA_DIR)
 
 RIVER_SHP = DATA_DIR / 'water_network' / '三级以上河流.shp'
@@ -73,8 +73,8 @@ def main():
 
     rivers = gpd.read_file(RIVER_SHP, encoding='GBK')      # NAME 列为 GBK
     print(f'水系要素（全国）: {len(rivers)}')
-    study = gpd.read_file(STUDY_SLOPE_UNITS_SHP)
-    print(f'研究单元: {len(study)}')
+    study = gpd.read_file(SLOPE_UNITS_SHP)      # 全量 26068（含剔除单元，便于全图预测）
+    print(f'斜坡单元（全量）: {len(study)}')
 
     # 统一到 UTM 32649（距离/长度用米）
     rivers_utm = rivers.to_crs(UTM)

@@ -32,7 +32,7 @@ from rasterio.features import rasterize
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src.config import (STUDY_SLOPE_UNITS_SHP, LANDUSE_MATRIX_CSV,
+from src.config import (SLOPE_UNITS_SHP, LANDUSE_MATRIX_CSV,
                         DATA_DIR, START_YEAR, END_YEAR)
 
 LANDUSE_DIR = DATA_DIR / 'landuse'
@@ -101,9 +101,9 @@ def main():
     if missing:
         raise FileNotFoundError(f'缺少 CLCD 文件: {missing}（应放在 {LANDUSE_DIR}）')
 
-    study = gpd.read_file(STUDY_SLOPE_UNITS_SHP)
+    study = gpd.read_file(SLOPE_UNITS_SHP)      # 全量 26068（含剔除单元，便于全图预测）
     unit_ids = get_unit_id(study)
-    print(f'研究单元: {len(study)} | 年份: {years[0]}~{years[-1]}（{len(years)} 年）')
+    print(f'斜坡单元（全量）: {len(study)} | 年份: {years[0]}~{years[-1]}（{len(years)} 年）')
 
     t0 = time.time()
     cols = {'unit_id': unit_ids}
