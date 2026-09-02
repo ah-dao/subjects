@@ -88,7 +88,12 @@ def main():
 
     # ---------- 4. 组装特征表 + 标签 ----------
     df = merged[['unit_id'] + ALL_FEATURES].copy()
-    df['label'] = (su['landslide_count'].fillna(0).astype(int) > 0).astype(int)
+    # 标签 = 研究期（2003-2021）有滑坡（landslide_count_study>0）；
+    # 184 个"仅蓄水前滑坡、研究期未滑坡"单元 label=0（并入负样本）
+    if 'landslide_count_study' in su.columns:
+        df['label'] = (su['landslide_count_study'].fillna(0).astype(int) > 0).astype(int)
+    else:
+        df['label'] = (su['landslide_count'].fillna(0).astype(int) > 0).astype(int)
 
     # NaN 统计与填充（用列均值填充缺失）
     nan_count = int(df[ALL_FEATURES].isna().sum().sum())

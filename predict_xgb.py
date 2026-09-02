@@ -27,7 +27,7 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
 from src.config import (EVENT_WINDOW_FEATURES_CSV, EVENT_WINDOW_FEATURES,
-                        STUDY_SLOPE_UNITS_SHP, SLOPE_UNITS_SHP, SLOPE_UNITS_COUNT_CSV,
+                        study_shp_path, SLOPE_UNITS_SHP, SLOPE_UNITS_COUNT_CSV,
                         NDVI_MATRIX_CSV, RAIN_MATRIX_CSV, LANDUSE_MATRIX_CSV,
                         TERRAIN_FEATURES_CSV, WATER_FEATURES_CSV, WATER_NETWORK_FEATURES_CSV,
                         PRED_DIR, SEED, LEVEL_THRESHOLDS, LEVEL_NAMES,
@@ -147,33 +147,12 @@ def main():
     breaks = level_breaks(args.method, prob, args.seed)
     level = np.searchsorted(breaks, prob) + 1
 
-    # ---------- 全量覆盖：184 剔除单元补特征 + 预测 ----------
+    # ---------- 全量覆盖版输出：特征表已含全部 26068 单元（184 并入负样本），直接回填全量 shp ----------
     if args.full_coverage:
-        su_all = pd.read_csv(SLOPE_UNITS_COUNT_CSV)
-        su_all.columns = [str(c).strip() for c in su_all.columns]   # 清洗 QGIS 尾随空格列名
-        id_col = 'unit_id' if 'unit_id' in su_all.columns else su_all.columns[0]
-        su_all = su_all.rename(columns={id_col: 'unit_id'})
-        su_all['unit_id'] = su_all['unit_id'].astype(str)
-        study_ids = set(unit_id.astype(str))
-        extra = su_all[~su_all['unit_id'].isin(study_ids)]
-        print(f'剔除单元: {len(extra)}')
-        d = pd.to_datetime(extra['first_landslide_date'], errors='coerce')
-        pos_d = pd.to_datetime(su_all[su_all['unit_id'].isin(study_ids)]
-                               ['study_first_landslide_date'], errors='coerce').dropna()
-        pos_years = pos_d.dt.year.astype(int).values
-        pos_months = pos_d.dt.month.astype(int).values
-        X_extra = build_extra_features(extra['unit_id'].values, pos_years, pos_months)
-        X_extra_n = minmax_apply(X_extra, min_, max_)
-        prob_extra = model.predict_proba(X_extra_n)[:, 1]
-        level_extra = np.searchsorted(breaks, prob_extra) + 1
-
         full_gdf = gpd.read_file(SLOPE_UNITS_SHP)
         full_gdf['_Id'] = full_gdf['Id'].astype(str)
         pred = pd.DataFrame({'unit_id': unit_id.astype(str), '_prob': prob, '_level': level})
-        pred_e = pd.DataFrame({'unit_id': extra['unit_id'].values, '_prob': prob_extra,
-                               '_level': level_extra})
-        allp = pd.concat([pred, pred_e])
-        full_gdf = full_gdf.merge(allp, left_on='_Id', right_on='unit_id', how='left')
+        full_gdf = full_gdf.merge(pred, left_on='_Id', right_on='unit_id', how='left')
         full_gdf['ls_prob'] = full_gdf['_prob'].values
         full_gdf['ls_level'] = full_gdf['_level'].astype(int).values
         full_gdf = full_gdf.drop(columns=['_Id', '_prob', '_level'])
@@ -185,13 +164,12 @@ def main():
             full_gdf.to_file(out_full)
             print('提示: 原文件被占用，已另存。')
         print(f'\n已导出（全量 26068，全 1-5 级）: {out_full}')
-        print('  剔除单元（蓄水前滑坡）级别分布:',
-              dict(pd.Series(level_extra).value_counts().sort_index()))
+        print('  级别分布:', dict(pd.Series(full_gdf['ls_level']).value_counts().sort_index()))
         print('  全量级别分布:',
               dict(pd.Series(full_gdf['ls_level']).value_counts().sort_index()))
 
     # ---------- 研究单元版 ----------
-    gdf = gpd.read_file(STUDY_SLOPE_UNITS_SHP)
+    gdf = gpd.read_file(study_shp_path())      # 全量 26068（特征表已含全部单元，直接全图预测）
     gdf['ls_prob'] = prob
     gdf['ls_level'] = level
     out_shp = PRED_DIR / 'susceptibility_units_xgb.shp'

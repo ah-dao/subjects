@@ -40,7 +40,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src.config import (END_YEAR, STUDY_UNITS_COUNT_CSV, FEATURES_CSV,
+from src.config import (END_YEAR, SLOPE_UNITS_COUNT_CSV, FEATURES_CSV,
                         NDVI_MATRIX_CSV, RAIN_MATRIX_CSV, LANDUSE_MATRIX_CSV,
                         LANDUSE_FEATURES)
 
@@ -144,8 +144,10 @@ def main():
     out_csv = ROOT / 'features' / f'event_window_features_k{k}.csv'
 
     # ---------- 1. 研究单元 + 事件年 ----------
-    su = pd.read_csv(STUDY_UNITS_COUNT_CSV)
-    su.columns = [str(c).strip() for c in su.columns]
+    su = pd.read_csv(SLOPE_UNITS_COUNT_CSV)      # 全量 26068（184 剔除单元并入负样本，label=0）
+    su.columns = [str(c).strip() for c in su.columns]   # 清洗 QGIS 尾随空格列名
+    id_col = 'unit_id' if 'unit_id' in su.columns else su.columns[0]   # 全量表首列名可能是 'Id'
+    su = su.rename(columns={id_col: 'unit_id'})
     su['unit_id'] = su['unit_id'].astype(str)
     d = pd.to_datetime(su['study_first_landslide_date'], errors='coerce')
     event_year = d.dt.year

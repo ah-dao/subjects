@@ -26,7 +26,7 @@ sys.stdout.reconfigure(errors='replace')   # 控制台 GBK 无法打印部分县
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src.config import (STUDY_SLOPE_UNITS_SHP, COUNTY_UNITS_CSV,
+from src.config import (SLOPE_UNITS_SHP, COUNTY_UNITS_CSV,
                         DATA_DIR)
 
 COUNTY_SHP = DATA_DIR / 'admin' / 'county' / '县级行政区.shp'
@@ -43,7 +43,7 @@ def get_unit_id(gdf):
 def main():
     if not COUNTY_SHP.exists():
         raise FileNotFoundError(f'未找到县级行政区 shp: {COUNTY_SHP}')
-    study = gpd.read_file(STUDY_SLOPE_UNITS_SHP)
+    study = gpd.read_file(SLOPE_UNITS_SHP)      # 全量 26068（含并入负样本的 184 单元）
     county = gpd.read_file(COUNTY_SHP)
     print(f'研究单元: {len(study)} | 县级要素: {len(county)}')
     print(f'县级 CRS: {county.crs} → 转研究区 CRS: {study.crs}')

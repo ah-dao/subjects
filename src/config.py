@@ -14,23 +14,24 @@ ROOT = Path(__file__).resolve().parent.parent
 
 DATA_DIR = ROOT / 'data'
 TERRAIN_TIF = DATA_DIR / 'terrain' / 'Terrain_MultiBand.tif'           # 5波段地形栅格（本地已有）
-SLOPE_UNITS_SHP = DATA_DIR / 'slope_units' / 'slope_units_fixed.shp'   # 修复后的斜坡单元 shp（全量）
+SLOPE_UNITS_SHP = DATA_DIR / 'slope_units' / 'slope_units_fixed.shp'   # 修复后的斜坡单元 shp（全量 26068）
 LANDSLIDE_XLS = DATA_DIR / 'landslide' / '消落带隐患点.xls'             # 滑坡隐患点 Excel（含日期/经纬度）
 WATER_XLS = DATA_DIR / 'water' / '水位.xlsx'                            # 逐日水位 Excel（日期/水位 列名自动识别）
-SLOPE_UNITS_COUNT_CSV = DATA_DIR / 'slope_units' / 'slope_units_count.csv'  # QGIS 计算点在多边形内导出
-# 方案 B：研究期 2003-2021（剔除蓄水前首次滑坡单元），由 tills/filter_study_units.py 生成
+SLOPE_UNITS_COUNT_CSV = DATA_DIR / 'slope_units' / 'slope_units_count.csv'  # QGIS 计算点在多边形内导出（全量）
+# 历史方案 B 文件（25884 研究单元）保留作备份；当前主线改用全量 26068——
+# 184 个"仅蓄水前滑坡"单元并入负样本（研究期未滑坡，label=0），全图训练/出图无空缺
 STUDY_SLOPE_UNITS_SHP = DATA_DIR / 'slope_units' / 'study_units_fixed.shp'
 STUDY_UNITS_COUNT_CSV = DATA_DIR / 'slope_units' / 'study_units_count.csv'
 
 
 def study_shp_path():
-    """研究单元 shp：方案 B 过滤文件存在时用之，否则退回全量（保持与特征表/图一致）。"""
-    return STUDY_SLOPE_UNITS_SHP if STUDY_SLOPE_UNITS_SHP.exists() else SLOPE_UNITS_SHP
+    """建模/出图单元 shp：全量 26068（184 剔除单元并入负样本后统一为全量）。"""
+    return SLOPE_UNITS_SHP
 
 
 def study_count_csv_path():
-    """研究单元计数表：方案 B 过滤文件存在时用之，否则退回全量。"""
-    return STUDY_UNITS_COUNT_CSV if STUDY_UNITS_COUNT_CSV.exists() else SLOPE_UNITS_COUNT_CSV
+    """建模单元计数表：全量 26068。"""
+    return SLOPE_UNITS_COUNT_CSV
 
 GEE_DIR = DATA_DIR / 'gee'
 NDVI_STACK_DIR = GEE_DIR / 'ndvi_stack'      # ndvi_YYYY.tif
