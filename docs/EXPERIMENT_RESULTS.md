@@ -1,9 +1,10 @@
-# 实验记录：特征定稿（24 维）+ 负采样评估（评审问题 1/2 落地）
+# 实验记录：特征收敛（30 维主线）+ 负采样评估
 
 > 本文件归档本项目阶段汇报后的全部实验结论、数据与复现命令。
-> 主线口径：事件前 K=2 窗口 + 前期降雨 ant_*（GEE 逐月）+ T−1 土地利用（CLCD）+ 水系/地形/淹没静态特征，**24 维**；
-> 负采样三口径（全域 / 时空邻近硬采样 / 软采样）× 分折方式（KMeans / 按县 / 跨县留出）。
-> 历史口径（19 维）结果保留在 §3 供对照；**24 维完整矩阵待岩性特征接入后重跑**。
+> **当前主线：事件窗口 30 维特征表**（`features/event_window_features_k2_v30.csv`，26,068 全量单元，零缺失），
+> XGBoost admin×全域 5 折 **AUC 0.8223 ± 0.0243**；完整特征定义/计算口径见 [FEATURES_V30.md](FEATURES_V30.md)。
+> 构成 = 24 维历史定稿（静态 12 + K=2 窗口 6 + ant 4 + 土地利用 2）+ 道路 4 + 土地利用变化 3 − 冗余 curvature_mean 1。
+> 历史口径（24/19 维）结果保留在 §3 供对照；负采样三口径 × 分折方式结论见 §2-3。
 
 ---
 
@@ -107,6 +108,32 @@
 **水系内部冗余对的消融处理**（river_dist_m ↔ drainage_density = −0.901）：
 - 删 river_dist_m → 0.7767（掉分）；删 drainage_density → 0.7807（掉分）→ **两者互补，均保留**（数据驱动决策，比"必删冗余"更精细）。
 
+### 3.1b 特征扩展至 30 维（道路 + 土地利用变化，消融收敛）
+
+> 数据源：OSM Geofabrik 重庆+湖北路网（`extract_road_features.py`）、CLCD 年度序列土地利用变化（组装于 `build_v30_features.py`）。
+> 完整特征口径见 [FEATURES_V30.md](FEATURES_V30.md)。
+
+| 特征集 | AUC | 增量 |
+|---|---|---|
+| 24 维（上一主线） | 0.8051 ± 0.0266 | — |
+| +4 道路（road_dist/density/major/local） | 0.8184 ± 0.0242 | **+0.0133** |
+| +3 土地利用变化（lu_*_delta） | 0.8077 ± 0.0226 | +0.0026 |
+| 全部 35 维（含水位触发 4） | 0.8209 ± 0.0228 | — |
+| **30 维主线（剔水位 4 + 冗余 curvature）** | **0.8223 ± 0.0243** | **+0.0172（vs 24 维）** |
+
+**消融归因（admin×全域 5 折，剔除后 AUC 变化）**：
+
+| 特征组（剔除后） | AUC | 结论 |
+|---|---|---|
+| 道路 4 | 0.8114（−0.0106） | 保留，**最大新增增益** |
+| 土地利用变化 3 | 0.8184（−0.0036） | 保留 |
+| ant 前期降雨 3 | 0.8193（−0.0026） | 保留 |
+| 几何 2（area/shape_index） | 0.8072（−0.0147） | 保留 |
+| NDVI 窗口 2 | 0.8049（−0.0171） | 保留（最强贡献） |
+| aspect 2 | 0.8193（−0.0027） | 保留（坡向不可替代） |
+| curvature_mean | 0.8223（+0.0003） | **删除**（与 TRI 相关 0.963 冗余） |
+| 水位触发 4（ant_inund/drawdown） | 0.8220（importance 全 0） | **删除**（被 inundation_fraction 吸收，见 FEATURES_V30 §水位说明） |
+
 ### 3.2 历史口径（19 维）：分折方式 × 负采样口径
 
 | 分折方式 | 负采样 | 全单元 AUC | 采样池 AUC | 结果文件 |
@@ -165,14 +192,14 @@ python tills/import_gee_unit_stats.py --year YYYY --src data/gee/unit_stats_mont
 python tills/join_county.py                       # 单元→县归属（features/county_units.csv）
 python tills/analyze_negatives.py                 # 负采样质量诊断
 
-# 实验矩阵（XGBoost）
-python baseline_xgb.py --features-csv features/event_window_features_k2.csv --folds 5 \
+# 实验矩阵（XGBoost，历史 24 维口径；表文件归档于 features/_archive/event_window_features_k2.csv）
+python baseline_xgb.py --features-csv features/_archive/event_window_features_k2.csv --folds 5 \
     --method admin --neg-sampling none                    # 24 维 0.8068
-python baseline_xgb.py --features-csv features/event_window_features_k2.csv --folds 5 \
+python baseline_xgb.py --features-csv features/_archive/event_window_features_k2.csv --folds 5 \
     --method spatial_kmeans --neg-sampling none          # 历史 19 维 0.7099
-python baseline_xgb.py --features-csv features/event_window_features_k2.csv --folds 5 \
+python baseline_xgb.py --features-csv features/_archive/event_window_features_k2.csv --folds 5 \
     --method spatial_kmeans --neg-sampling proximity --neg-km 4 --neg-k 2   # 0.7188
-python baseline_xgb.py --features-csv features/event_window_features_k2.csv --folds 5 \
+python baseline_xgb.py --features-csv features/_archive/event_window_features_k2.csv --folds 5 \
     --method admin --neg-sampling soft --neg-km 4 --neg-lam 0.2              # 0.7375
 python cross_county_validate.py --splits 5 --test-frac 0.3 --seed 42 \
     --neg-sampling none                                   # 0.7226

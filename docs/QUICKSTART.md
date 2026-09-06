@@ -115,9 +115,9 @@ data/
 python main.py --stage all --plan B --folds 5
 
 # 或分阶段执行
-python main.py --stage data       # 特征提取 → 22 维对照表 + 事件窗口 20 维特征表（当前主线）
+python main.py --stage data       # 特征提取 → 对照表 + 事件窗口 30 维主线特征表（见 docs/FEATURES_V30.md）
 python main.py --stage graph      # 图构建
-python main.py --stage baseline   # XGBoost 基线（事件窗口特征，AUC≈0.71）
+python main.py --stage baseline   # XGBoost 基线（30 维主线，AUC≈0.82）
 python main.py --stage train --plan B --folds 5
 python main.py --stage predict --plan B --method fixed
 ```
@@ -140,10 +140,12 @@ python tills/extract_temporal_features.py   # → temporal_features.csv（8 维�
 python tills/extract_water_features.py      # → water_features.csv（6 维淹没特征，无截断）
 python tills/merge_features.py              # → features/features.csv（22 维对照特征表 + 标签）
 
-# 2) ★ 事件窗口特征表（当前主线）
-python tills/build_event_window_features.py --k 2 --start-year 1997 --seed 42
-# → features/event_window_features_k2.csv（25884 行 × 22 列：静态 14 + 事件前 2 年窗口 6 + label）
-#   正样本 T=首次滑坡年；负样本 T=频率匹配伪事件年；时序特征只用 [1997, T-1] 数据（无泄漏）
+# 2) ★ 事件窗口 30 维主线特征表（见 docs/FEATURES_V30.md）
+python tills/build_event_window_features.py --k 2 --start-year 2000 --seed 42   # → 24 维中间表
+python tills/build_v30_features.py --k 2    # → 30 维主线（+道路4 +土地利用变化3，-冗余 curvature）
+# → features/event_window_features_k2_v30.csv（26068 全量单元 × 31 列：30 特征 + label，零缺失）
+#   正样本 T=首次滑坡年；负样本 T=频率匹配伪事件年；时序特征只用 [2000, T-1] 数据（无泄漏）
+#   道路特征依赖 extract_road_features.py（OSM 下载到 data/roads/），见第 1.6 节
 ```
 
 ### 4.2 图构建
@@ -156,11 +158,11 @@ python tills/build_graph.py --method delaunay            # 质心 Delaunay（备
 ### 4.3 XGBoost 基线
 
 ```bash
-python baseline_xgb.py --features-csv features/event_window_features_k2.csv \
-    --folds 5 --method spatial_kmeans
-# 查看 results/baseline_xgb_ew_feat_k2.json：平均 AUC 与特征重要性
-# 当前实测：AUC ≈ 0.71 ± 0.02（事件窗口 20 维，去泄漏后真实水平）
-# 说明：不带 --features-csv 时跑静态全窗口 22 维对照口径（AUC≈0.69）
+python baseline_xgb.py --features-csv features/event_window_features_k2_v30.csv \
+    --folds 5 --method admin
+# 查看 results/baseline_xgb_ew_feat_k2_v30_madmin.json：平均 AUC 与特征重要性
+# 当前实测：AUC ≈ 0.8223 ± 0.0243（30 维主线，按县分折 × 全域）
+# 说明：不带 --features-csv 时跑静态全窗口对照口径（AUC≈0.69）
 ```
 
 ### 4.4 GNN 训练
@@ -246,7 +248,7 @@ drive.mount('/content/drive')
 | GEE 报 "Failed to execute 'send'..." | 脚本已改用外包络矩形 region（避免 2.6 万多边形巨型几何）；仍报错时检查代理（Vortex 127.0.0.1:7897）或换无痕窗口 |
 | GEE 报 "Failed to contact Earth Engine servers" | 本机网络/代理问题，非脚本问题：确认 `netstat -ano | findstr 7897` 有监听、刷新页面、无痕窗口重试 |
 | 特征表缺列 | 先运行 `python main.py --stage data` 检查 features/ 下各中间 CSV 是否齐全 |
-| 基线 AUC 异常高（接近 1.0） | 存在特征泄漏：检查是否混入复发特征/截断类时序特征（见 PROJECT_EXPLANATION 3.2 节） |
+| 基线 AUC 异常高（接近 1.0） | 存在特征泄漏：检查是否混入复发特征/截断类时序特征（防泄漏口径见 FEATURES_V30.md 各组"防泄漏"列） |
 | 训练 loss 为 NaN | 检查特征表是否有 Inf；merge_features 已用列均值填充 NaN |
-| 想换事件窗口 K | 重跑 `build_event_window_features.py --k <K> --start-year 1997`，再跑基线对比（参考 K 扫描表） |
+| 想换事件窗口 K | 重跑 `build_event_window_features.py --k <K> --start-year 2000`，再跑基线对比 |
 | 多次滑坡单元 | 事件年取首次滑坡年份；次数不进模型（会泄漏），可用 `--weight-scheme count` 加权（已验证无显著增益） |
