@@ -46,7 +46,8 @@ WATER_NETWORK_FEATURES_CSV = FEATURES_DIR / 'water_network_features.csv'   # 水
 LANDUSE_MATRIX_CSV = FEATURES_DIR / 'landuse_unit_matrix.csv'   # CLCD 年度土地利用矩阵（extract_landuse_features.py）
 MONTHLY_WATER_CSV = FEATURES_DIR / 'monthly_water_levels.csv'           # extract_water_features 副产物
 FEATURES_CSV = FEATURES_DIR / 'features.csv'                            # 静态全窗口特征表（历史对照口径）
-EVENT_WINDOW_FEATURES_CSV = FEATURES_DIR / 'event_window_features_k2.csv'  # 当前主线：事件窗口 24 维特征表
+EVENT_WINDOW_FEATURES_CSV = FEATURES_DIR / 'event_window_features_k2_v30.csv'  # 当前主线：事件窗口 30 维特征表（XGB AUC 0.8223）
+# 历史对照：event_window_features_k2.csv（24 维，0.8051）/ v31（含 curvature，0.8220）保留备用
 GRAPH_NPZ = FEATURES_DIR / 'graph.npz'                                  # edge_index
 OOF_PREDICTIONS_CSV = FEATURES_DIR / 'oof_predictions.csv'              # 交叉验证外推预测
 COUNTY_UNITS_CSV = FEATURES_DIR / 'county_units.csv'                    # 单元→县级归属（tills/join_county.py 生成）
@@ -72,10 +73,13 @@ NDVI_BAND_NAME = 'NDVI'
 # ============================================================
 # --- 静态特征（时间无关，事件窗口与静态全窗口口径共用） ---
 # P0 重构：aspect_mean（0-360 普通均值有环绕误差）→ 循环分量 aspect_sin/aspect_cos（单元内 sin/cos 均值）
+# 消融取舍：curvature_mean 与 TRI_mean 相关 0.963（精确冗余，精细消融 E2 +0.0003）→ 已从主线移除，
+#           但仍保留在 STATIC_TERRAIN_FEATURES 中以兼容 features.csv 历史对照口径；主线用
+#           EVENT_WINDOW_FEATURES（见下）不含 curvature_mean。
 STATIC_TERRAIN_FEATURES = [
     'elevation_mean', 'slope_mean', 'aspect_sin', 'aspect_cos',
     'TRI_mean', 'curvature_mean',
-]                                                                       # 6 维：静态地形
+]                                                                       # 6 维：静态地形（含 curvature 供历史对照）
 # P0 重构：compactness = 1/shape_index² 精确恒等（实测差值 6.7e-16），删除，保留 area/shape_index
 GEOMETRY_FEATURES = ['area', 'shape_index']                              # 2 维：静态几何
 # 水位特征重设计（消除泄漏）：不再按事件日期截断，改用"单元高程 × 库水位"的
@@ -104,15 +108,34 @@ ANTECEDENT_FEATURES = ['ant_1m', 'ant_3m', 'ant_6m', 'wet_season_frac']
 # --- 土地利用特征（CLCD，T−1 截断：正样本取事件年 T−1、负样本取伪事件年 T−1，无未来泄漏） ---
 LANDUSE_FEATURES = ['cropland_frac', 'builtup_frac']
 
-EVENT_WINDOW_FEATURES = (STATIC_FEATURES + [
+# --- 土地利用变化特征（CLCD 序列，事件前 K 年窗口内变化，人类活动扰动动态） ---
+# 提取脚本：tills/build_v30_features.py（在组装 30 维主线时计算）；消融实测 +0.003~0.013 增益
+LANDUSE_DELTA_FEATURES = ['lu_builtup_delta', 'lu_cropland_delta', 'lu_change_freq']
+
+# --- 道路网特征（OSM Geofabrik 免费版：重庆+湖北 roads，人类活动切坡代理） ---
+# 提取脚本：tills/extract_road_features.py；消融实测：+0.0133 增益（road_density/road_dist_m 最重要）
+ROAD_FEATURES = ['road_dist_m', 'road_density', 'road_major_dist_m', 'road_local_dist_m']
+
+# 地形特征取舍（精细消融实测，基准 0.8220）：
+#   curvature_mean 与 TRI_mean 相关 0.963（精确冗余）→ 主线排除 curvature_mean（E2 +0.0003），保留 TRI_mean；
+#   aspect_sin/cos 不可删（E4 -0.0027）；slope_mean 保留（经典因子）；elevation_mean 高程带核心。
+#   最终 30 维 = 24 基线 + 道路 4 + 土地利用变化 3 - curvature_mean 1，AUC 0.8223 ± 0.0243
+# 主线静态特征 = STATIC_FEATURES 去掉 curvature_mean（其保留在 STATIC_TERRAIN_FEATURES 供 features.csv 对照）
+MAIN_STATIC_FEATURES = [f for f in STATIC_FEATURES if f != 'curvature_mean']
+EVENT_WINDOW_FEATURES = (tuple(MAIN_STATIC_FEATURES) + (
     f'k{EVENT_WINDOW_K}_ndvi_mean',        # 事件前 K 年 NDVI 均值（植被状态）
     f'k{EVENT_WINDOW_K}_ndvi_change',      # 事件前 K 年 NDVI 均值 − 长期均值（近期退化）
     f'k{EVENT_WINDOW_K}_maxdaily_max',     # 事件前 K 年最大日降雨峰值（mm）
     f'k{EVENT_WINDOW_K}_max30d_max',       # 事件前 K 年 30 日累计降雨峰值（mm）
     f'k{EVENT_WINDOW_K}_heavydays_sum',    # 事件前 K 年暴雨日数（>50mm/日）之和
     f'k{EVENT_WINDOW_K}_cumulative_mean',  # 事件前 K 年年累计降雨均值（mm）
-] + ANTECEDENT_FEATURES + LANDUSE_FEATURES)                           # 24 维
-INPUT_DIM = len(EVENT_WINDOW_FEATURES)     # 24：GNN 输入维度（当前主线）
+) + tuple(ANTECEDENT_FEATURES) + tuple(LANDUSE_FEATURES)
+    + tuple(LANDUSE_DELTA_FEATURES) + tuple(ROAD_FEATURES))              # 30 维
+INPUT_DIM = len(EVENT_WINDOW_FEATURES)     # 30：GNN 输入维度（当前主线，XGB AUC 0.8223）
+
+# --- 事件前库水位骤降特征（已实测剔除：XGBoost 下重要性为 0，被静态 inundation_fraction 吸收；
+#     提取逻辑归档于 tills/_archive/extract_new_factors.py，供未来时空预测扩展复用） ---
+# WATER_TRIGGER_FEATURES = ['ant_inund_1m', 'ant_inund_3m', 'ant_max_depth_3m', 'ant_drawdown_3m']
 
 # --- 静态全窗口时序特征（历史对照口径，22 维，AUC 0.6944） ---
 NDVI_FEATURES = ['long_trend_slope', 'long_cv', 'recent_2yr_ndvi_drop',

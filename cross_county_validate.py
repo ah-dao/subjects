@@ -1,11 +1,11 @@
-"""
+﻿"""
 跨县留出验证（跨区域泛化）：按县 70/30 划分，训练县完全留出测试县。
 
 对每组划分：训练县 → XGBoost（与 baseline 同超参）→ 在从未见过的测试县上评估。
 多组划分（随机种子）取均值 ± std，抵消单次划分方差。
 
 用法：
-    python cross_county_validate.py [--features-csv features/event_window_features_k2.csv]
+    python cross_county_validate.py [--features-csv features/event_window_features_k2_v30.csv]
         [--splits 5] [--test-frac 0.3] [--seed 42]
         [--neg-sampling none|proximity] [--neg-km 4] [--neg-k 2]
 输出：results/cross_county_xgb[_np{km}k{k}].json

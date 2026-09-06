@@ -1,5 +1,5 @@
-"""
-GraphSAGE + Transformer 训练入口（OPTIMIZATION_PATHS.md 8.2 阶段 3）。
+﻿"""
+GraphSAGE + Transformer 训练入口（PROJECT_OVERVIEW.md）。
 
 用法：
     python train_gnn.py --plan B --folds 5 [--epochs 200] [--patience 20]

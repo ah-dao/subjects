@@ -1,5 +1,5 @@
-"""
-全图推理 + 矢量出图（OPTIMIZATION_PATHS.md 7 节）。
+﻿"""
+全图推理 + 矢量出图（PROJECT_OVERVIEW.md）。
 
 加载最终模型 → 全图 2.6 万节点前向 → 概率 [0,1] → 5 级易发性 → 回填 shapefile。
 

@@ -1,5 +1,5 @@
-"""
-从 5 波段地形 GeoTIFF 提取斜坡单元静态地形特征（OPTIMIZATION_PATHS.md 3.3 / 4.6 节）。
+﻿"""
+从 5 波段地形 GeoTIFF 提取斜坡单元静态地形特征（PROJECT_OVERVIEW.md）。
 
 特征（6 维，取单元内均值）：
     elevation_mean, slope_mean, curvature_mean, TRI_mean

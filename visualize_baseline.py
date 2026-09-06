@@ -1,4 +1,4 @@
-"""
+﻿"""
 基线测试可视化（阶段汇报用）。
 
 基于现有结果文件生成 7 张图到 results/figures/：
@@ -11,7 +11,7 @@
   7. top10_recall.png         Recall@Top10% 对比（静态 vs 事件窗口，各折）
 
 用法：
-    python visualize_baseline.py [--features-csv features/event_window_features_k2.csv]
+    python visualize_baseline.py [--features-csv features/event_window_features_k2_v30.csv]
                                  [--folds 5] [--seed 42] [--out results/figures]
 依赖：results/ 下已有各实验 json（缺失的图自动跳过）。
 """
@@ -56,7 +56,7 @@ def load_json(name):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--features-csv', default=str(ROOT / 'features' / 'event_window_features_k2.csv'))
+    parser.add_argument('--features-csv', default=str(ROOT / 'features' / 'event_window_features_k2_v30.csv'))
     parser.add_argument('--folds', type=int, default=5)
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--out', default=str(ROOT / 'results' / 'figures'))

@@ -1,5 +1,5 @@
-"""
-合并所有特征为最终 28 维特征表（OPTIMIZATION_PATHS.md 4.6 节）。
+﻿"""
+合并所有特征为最终 28 维特征表（PROJECT_OVERVIEW.md）。
 
 输入：
     data/slope_units/slope_units_count.csv   （QGIS 导出：unit_id, landslide_count,

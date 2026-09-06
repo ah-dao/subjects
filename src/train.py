@@ -1,4 +1,4 @@
-"""训练循环：加权 BCE、早停、K 折空间交叉验证、OOF 外推（OPTIMIZATION_PATHS.md 6 节）。
+﻿"""训练循环：加权 BCE、早停、K 折空间交叉验证、OOF 外推（PROJECT_OVERVIEW.md）。
 
 梯度策略：
 - 训练：train_step_loss() 在 autograd 下前向（方案 B/C 的全局注意力按 node_batch

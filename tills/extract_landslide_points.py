@@ -1,5 +1,5 @@
-"""
-从 Excel 提取 2000-2021 年含具体日期的滑坡点（OPTIMIZATION_PATHS.md 3.2 节）。
+﻿"""
+从 Excel 提取 2000-2021 年含具体日期的滑坡点（PROJECT_OVERVIEW.md）。
 
 输出 CSV 可直接拖入 QGIS：
     data/landslide/landslide_points_2000_2021.csv

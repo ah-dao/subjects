@@ -1,5 +1,5 @@
-"""
-XGBoost 基线（OPTIMIZATION_PATHS.md 8.2 阶段 2）。
+﻿"""
+XGBoost 基线（PROJECT_OVERVIEW.md）。
 
 用 22 维特征验证特征质量：5 折交叉验证输出 AUC，并检查水位特征是否排前列
 （验证"消落带水位触发"假设）。AUC > 0.7 再继续上图模型。

@@ -1,4 +1,4 @@
-"""数据加载与划分：特征表、图、空间 K-Fold（OPTIMIZATION_PATHS.md 6.1 节）。
+﻿"""数据加载与划分：特征表、图、空间 K-Fold（PROJECT_OVERVIEW.md）。
 
 关键约定：
 - 特征表 features.csv 的行序 = 斜坡单元 shp 的行序（unit_id 一一对应），

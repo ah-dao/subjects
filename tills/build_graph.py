@@ -1,5 +1,5 @@
-"""
-构建斜坡单元图（OPTIMIZATION_PATHS.md 3.1 / 5 节）。
+﻿"""
+构建斜坡单元图（PROJECT_OVERVIEW.md）。
 
 两种建图方式：
     1. polygon_adjacency（默认，推荐）：共享边界的单元互为邻居（物理意义最贴合地形连通性）

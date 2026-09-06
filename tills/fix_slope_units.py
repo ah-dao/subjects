@@ -1,5 +1,5 @@
-"""
-修复斜坡单元 shapefile 中的无效几何（OPTIMIZATION_PATHS.md 3.1 节）。
+﻿"""
+修复斜坡单元 shapefile 中的无效几何（PROJECT_OVERVIEW.md）。
 
 - 用 shapely.make_valid 修复自相交、空环等问题
 - 将 GeometryCollection 拆解为 Polygon/MultiPolygon（保证后续 zonal stats 可用）

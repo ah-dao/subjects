@@ -1,4 +1,4 @@
-"""斜坡单元图模型：方案 A / B / C（见 OPTIMIZATION_PATHS.md 5 节）。
+﻿"""斜坡单元图模型：方案 A / B / C（见 PROJECT_OVERVIEW.md）。
 
 实现要点：
 - 自带 SAGEConv（均值聚合），等价于 torch_geometric.nn.SAGEConv(aggr='mean')，
