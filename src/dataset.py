@@ -1,4 +1,4 @@
-﻿"""数据加载与划分：特征表、图、空间 K-Fold（PROJECT_OVERVIEW.md）。
+"""数据加载与划分：特征表、图、空间 K-Fold（PROJECT_OVERVIEW.md）。
 
 关键约定：
 - 特征表 features.csv 的行序 = 斜坡单元 shp 的行序（unit_id 一一对应），
@@ -22,7 +22,7 @@ def load_features(csv_path, features=None):
     df = pd.read_csv(csv_path)
     unit_id = df['unit_id'].values
     y = df['label'].values.astype(np.int64)
-    cols = features if features is not None else ALL_FEATURES
+    cols = list(features) if features is not None else list(ALL_FEATURES)
     missing = [c for c in cols if c not in df.columns]
     if missing:
         raise ValueError(f'特征表缺少列: {missing}')

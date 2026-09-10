@@ -25,12 +25,20 @@ STUDY_UNITS_COUNT_CSV = DATA_DIR / 'slope_units' / 'study_units_count.csv'
 
 
 def study_shp_path():
-    """建模/出图单元 shp：全量 26068（184 剔除单元并入负样本后统一为全量）。"""
+    """建模/出图单元 shp：若存在 -train 人群（剔除常年水下 471 单元后的 25597）则用之
+    （训练只学可滑坡坡体）；推理/出图时 471 个水下单元回填 prob=0/极低级（见 predict 脚本）。
+    无 -train 文件时回退全量 26068。"""
+    train_shp = DATA_DIR / 'slope_units' / 'slope_units_train.shp'
+    if train_shp.exists():
+        return train_shp
     return SLOPE_UNITS_SHP
 
 
 def study_count_csv_path():
-    """建模单元计数表：全量 26068。"""
+    """建模单元计数表：与 study_shp_path 同人群。"""
+    train_cnt = DATA_DIR / 'slope_units' / 'slope_units_train_count.csv'
+    if train_cnt.exists():
+        return train_cnt
     return SLOPE_UNITS_COUNT_CSV
 
 GEE_DIR = DATA_DIR / 'gee'
@@ -46,11 +54,11 @@ WATER_NETWORK_FEATURES_CSV = FEATURES_DIR / 'water_network_features.csv'   # 水
 LANDUSE_MATRIX_CSV = FEATURES_DIR / 'landuse_unit_matrix.csv'   # CLCD 年度土地利用矩阵（extract_landuse_features.py）
 MONTHLY_WATER_CSV = FEATURES_DIR / 'monthly_water_levels.csv'           # extract_water_features 副产物
 FEATURES_CSV = FEATURES_DIR / 'features.csv'                            # 静态全窗口特征表（历史对照口径）
-EVENT_WINDOW_FEATURES_CSV = FEATURES_DIR / 'event_window_features_k2_v30.csv'  # 当前主线：事件窗口 30 维特征表（XGB AUC 0.8223）
-# 历史对照：event_window_features_k2.csv（24 维，0.8051）/ v31（含 curvature，0.8220）保留备用
-GRAPH_NPZ = FEATURES_DIR / 'graph.npz'                                  # edge_index
-OOF_PREDICTIONS_CSV = FEATURES_DIR / 'oof_predictions.csv'              # 交叉验证外推预测
-COUNTY_UNITS_CSV = FEATURES_DIR / 'county_units.csv'                    # 单元→县级归属（tills/join_county.py 生成）
+EVENT_WINDOW_FEATURES_CSV = FEATURES_DIR / 'event_window_features_k2_v34_train.csv'  # 当前主线：34 维特征表（-train 人群 25636，剔除 432 常年水下单元；661 正样本；XGB AUC 0.8233）
+# 历史对照：event_window_features_k2_v30_train.csv（30 维，0.8189）保留备用
+GRAPH_NPZ = FEATURES_DIR / 'graph_train.npz'                                  # edge_index（-train 人群）
+OOF_PREDICTIONS_CSV = FEATURES_DIR / 'oof_predictions_train.csv'              # 交叉验证外推预测
+COUNTY_UNITS_CSV = FEATURES_DIR / 'county_units_train.csv'                    # 单元→县级归属（-train 人群）
 # 年度 zonal mean 矩阵缓存（import_gee_unit_stats.py 写入，extract_temporal_features 读取）
 NDVI_MATRIX_CSV = FEATURES_DIR / 'ndvi_unit_matrix.csv'
 RAIN_MATRIX_CSV = FEATURES_DIR / 'rain_unit_matrix.csv'
@@ -116,6 +124,19 @@ LANDUSE_DELTA_FEATURES = ['lu_builtup_delta', 'lu_cropland_delta', 'lu_change_fr
 # 提取脚本：tills/extract_road_features.py；消融实测：+0.0133 增益（road_density/road_dist_m 最重要）
 ROAD_FEATURES = ['road_dist_m', 'road_density', 'road_major_dist_m', 'road_local_dist_m']
 
+# --- 干湿循环特征（评审意见：消落带干湿交替越频繁越易垮；新逐日水位数据） ---
+# 数据源：data/water/干流站点水位-0908.xlsx（4 站逐日 2003-2021，按经度就近分配）
+# 提取：tills/parse_station_water.py + extract_wetdry_features.py + extract_wetdry_event_features.py
+# 精选 4 维（消融实测：37 全量 0.8201 → 精选 4 维 0.8233 ± 0.0234，优于 30 维基线 0.8189）
+#   wet_dry_cycles     静态：19 年干湿交替总次数（评审核心）
+#   max_drawdown_rate  静态：全窗口单月最大库水位降幅（骤降强度，importance 0.043）
+#   ant_drawdown_3m    事件前 3 个月水位降幅（临滑前骤降）
+#   ant_inund_days_3m  事件前 3 个月被淹天数
+# 冗余剔除：dry_days_annual（与 inundation_fraction 相关 -0.993）、wet_episodes（=cycles 冗余）、
+#           ant_drawdown_1m（与 3m 相关 0.74）
+WETDRY_FEATURES = ['wet_dry_cycles', 'max_drawdown_rate',
+                   'ant_drawdown_3m', 'ant_inund_days_3m']
+
 # 地形特征取舍（精细消融实测，基准 0.8220）：
 #   curvature_mean 与 TRI_mean 相关 0.963（精确冗余）→ 主线排除 curvature_mean（E2 +0.0003），保留 TRI_mean；
 #   aspect_sin/cos 不可删（E4 -0.0027）；slope_mean 保留（经典因子）；elevation_mean 高程带核心。
@@ -130,11 +151,11 @@ EVENT_WINDOW_FEATURES = (tuple(MAIN_STATIC_FEATURES) + (
     f'k{EVENT_WINDOW_K}_heavydays_sum',    # 事件前 K 年暴雨日数（>50mm/日）之和
     f'k{EVENT_WINDOW_K}_cumulative_mean',  # 事件前 K 年年累计降雨均值（mm）
 ) + tuple(ANTECEDENT_FEATURES) + tuple(LANDUSE_FEATURES)
-    + tuple(LANDUSE_DELTA_FEATURES) + tuple(ROAD_FEATURES))              # 30 维
-INPUT_DIM = len(EVENT_WINDOW_FEATURES)     # 30：GNN 输入维度（当前主线，XGB AUC 0.8223）
+    + tuple(LANDUSE_DELTA_FEATURES) + tuple(ROAD_FEATURES)
+    + tuple(WETDRY_FEATURES))                                    # 34 维
+INPUT_DIM = len(EVENT_WINDOW_FEATURES)     # 34：GNN 输入维度（当前主线，XGB AUC 0.8233）
 
-# --- 事件前库水位骤降特征（已实测剔除：XGBoost 下重要性为 0，被静态 inundation_fraction 吸收；
-#     提取逻辑归档于 tills/_archive/extract_new_factors.py，供未来时空预测扩展复用） ---
+# --- 旧事件前水位骤降特征（已删：XGB 下被淹没特征吸收；后被 WETDRY 的逐日干湿特征取代） ---
 # WATER_TRIGGER_FEATURES = ['ant_inund_1m', 'ant_inund_3m', 'ant_max_depth_3m', 'ant_drawdown_3m']
 
 # --- 静态全窗口时序特征（历史对照口径，22 维，AUC 0.6944） ---

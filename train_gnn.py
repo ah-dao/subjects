@@ -1,4 +1,4 @@
-﻿"""
+"""
 GraphSAGE + Transformer 训练入口（PROJECT_OVERVIEW.md）。
 
 用法：
@@ -57,16 +57,21 @@ def main():
     parser.add_argument('--neg-k', type=int, default=NEG_K, help='每正样本抽取负样本数')
     parser.add_argument('--neg-lam', type=float, default=NEG_LAM, help='软负采样远区负样本权重')
     parser.add_argument('--neg-seed', type=int, default=NEG_SEED, help='负采样种子')
+    parser.add_argument('--lr', type=float, default=LEARNING_RATE, help='学习率（默认 config LEARNING_RATE=1e-3）')
+    parser.add_argument('--weight-decay', type=float, default=WEIGHT_DECAY, help='权重衰减（默认 config 1e-4）')
+    parser.add_argument('--pos-weight', type=float, default=0.0,
+                        help='正类加权系数（0=自动 n_neg/n_pos≈38；消融可设 1/5/10 抑制正类主导过拟合）')
     args = parser.parse_args()
 
     cfg = {
         'input_dim': INPUT_DIM, 'hidden_dim': HIDDEN_DIM, 'num_heads': NUM_HEADS,
         'num_layers': TRANSFORMER_LAYERS, 'dropout': DROPOUT,
-        'lr': LEARNING_RATE, 'weight_decay': WEIGHT_DECAY,
+        'lr': args.lr, 'weight_decay': args.weight_decay,
         'epochs': args.epochs, 'patience': args.patience,
         'k_folds': args.folds, 'fold_method': args.fold_method,
         'neg_sampling': args.neg_sampling, 'neg_km': args.neg_km,
         'neg_k': args.neg_k, 'neg_lam': args.neg_lam, 'neg_seed': args.neg_seed,
+        'pos_weight': (args.pos_weight if args.pos_weight > 0 else None),
     }
     sample_weight = load_sample_weights(EVENT_WINDOW_FEATURES_CSV, STUDY_UNITS_COUNT_CSV,
                                         scheme=args.weight_scheme)
@@ -77,7 +82,9 @@ def main():
     print(f'方案: {args.plan} | {args.folds} 折 | epochs {args.epochs} | 方法 {args.fold_method}'
           f' | 负样本: {args.neg_sampling}'
           + (f'（{args.neg_km}km × k={args.neg_k}）' if args.neg_sampling == 'proximity' else '')
-          + (f'（{args.neg_km}km, λ={args.neg_lam}）' if args.neg_sampling == 'soft' else ''))
+          + (f'（{args.neg_km}km, λ={args.neg_lam}）' if args.neg_sampling == 'soft' else '')
+          + f' | pos_weight: {"自动(n_neg/n_pos)" if args.pos_weight <= 0 else args.pos_weight}'
+          + f' | lr {args.lr} | wd {args.weight_decay}')
 
     fold_aucs, fold_aucs_pool, fold_recalls, _ = run_cv(
         EVENT_WINDOW_FEATURES_CSV, GRAPH_NPZ, study_shp_path(),

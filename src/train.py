@@ -1,4 +1,4 @@
-﻿"""训练循环：加权 BCE、早停、K 折空间交叉验证、OOF 外推（PROJECT_OVERVIEW.md）。
+"""训练循环：加权 BCE、早停、K 折空间交叉验证、OOF 外推（PROJECT_OVERVIEW.md）。
 
 梯度策略：
 - 训练：train_step_loss() 在 autograd 下前向（方案 B/C 的全局注意力按 node_batch
@@ -15,11 +15,12 @@ from sklearn.metrics import roc_auc_score
 
 from src.config import (PLAN, HIDDEN_DIM, NUM_HEADS, TRANSFORMER_LAYERS, DROPOUT,
                         LEARNING_RATE, WEIGHT_DECAY, NUM_EPOCHS, EARLY_STOP_PATIENCE,
-                        K_FOLDS, FOLD_METHOD, SEED, NEG_SAMPLING, NEG_KM, NEG_K, NEG_SEED)
+                        K_FOLDS, FOLD_METHOD, SEED, NEG_SAMPLING, NEG_KM, NEG_K, NEG_LAM,
+                        NEG_SEED)
 from src.model import build_model
 from src.dataset import (load_features, load_graph, load_centroids,
                          load_centroids_utm, sample_proximity_negatives,
-                         admin_folds,
+                         admin_folds, proximity_mask, proximity_weights,
                          spatial_folds, random_folds, fold_indices,
                          minmax_fit, minmax_apply)
 from src.metrics import summarize
@@ -223,7 +224,7 @@ def run_cv(features_csv, graph_npz, shp_path, cfg, plan=PLAN, seed=SEED,
     edge_index = load_graph(graph_npz)
     centroids = load_centroids(shp_path)
     assert len(unit_id) == len(centroids), '特征表与 shp 行数不一致'
-    cent_utm = load_centroids_utm(shp_path) if cfg.get('neg_sampling') == 'proximity' else None
+    cent_utm = load_centroids_utm(shp_path) if cfg.get('neg_sampling') in ('proximity', 'soft') else None
 
     fold_id = make_fold_id(centroids, cfg['k_folds'], cfg['fold_method'], seed,
                            unit_id=unit_id, y=y)
@@ -288,6 +289,8 @@ def run_cv(features_csv, graph_npz, shp_path, cfg, plan=PLAN, seed=SEED,
         n_pos_fit = int(y[tr_fit].sum())
         n_neg_fit = int(len(tr_fit) - n_pos_fit)
         pos_weight = n_neg_fit / max(n_pos_fit, 1)
+        if cfg.get('pos_weight'):
+            pos_weight = float(cfg['pos_weight'])      # --pos-weight 覆盖（消融用，0=自动）
         print(f'\n=== Fold {fold + 1}/{cfg["k_folds"]} | '
               f'train {len(tr_fit)}（抽中负样本 {n_neg_fit}）| val {len(va_idx)} | '
               f'pos_weight {pos_weight:.1f} ===')
@@ -396,6 +399,8 @@ def train_final(features_csv, graph_npz, cfg, plan=PLAN, seed=SEED,
     n_pos = int(y[fit_idx].sum())
     n_neg = int(len(fit_idx) - n_pos)
     pos_weight = n_neg / max(n_pos, 1)
+    if cfg.get('pos_weight'):
+        pos_weight = float(cfg['pos_weight'])          # --pos-weight 覆盖（消融用，0=自动）
     print(f'最终模型 | 参与训练样本 {len(fit_idx)}（正 {n_pos} / 负 {n_neg}）| pos_weight {pos_weight:.1f}')
 
     model = build_model(plan, input_dim=cfg['input_dim'], num_nodes=len(y),

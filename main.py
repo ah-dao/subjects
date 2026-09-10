@@ -40,7 +40,8 @@ def main():
     args = parser.parse_args()
 
     tills = ROOT / 'tills'
-    v30_features = ROOT / 'features' / 'event_window_features_k2_v30.csv'   # 30 维主线特征表
+    # 30 维主线特征表（全量 26068；主水系河道区域的语义处理在出图后叠加水系完成）
+    v30_features = ROOT / 'features' / 'event_window_features_k2_v30.csv'
 
     if args.stage in ('all', 'data'):
         # ① 滑坡点与单元关联

@@ -117,7 +117,7 @@ def build_extra_features(excluded_ids, pos_years, pos_months):
     gdf['shape_index'] = perim / np.maximum(2 * np.sqrt(np.pi * gdf['area'].values), 1e-12)
     df = df.merge(gdf[['unit_id', 'area', 'shape_index']], on='unit_id', how='left')
 
-    return df[EVENT_WINDOW_FEATURES].values.astype(np.float64)
+    return df[list(EVENT_WINDOW_FEATURES)].values.astype(np.float64)
 
 
 def main():
