@@ -1,12 +1,23 @@
-# 实验记录：特征收敛（30 维主线）+ 负采样评估
+# 实验记录：特征收敛（34 维主线）+ 负采样评估
 
 > 本文件归档本项目阶段汇报后的全部实验结论、数据与复现命令。
-> **当前主线：事件窗口 30 维特征表**（`features/event_window_features_k2_v30.csv`，26,068 全量单元，零缺失），
-> XGBoost admin×全域 5 折 **AUC 0.8223 ± 0.0243**；完整特征定义/计算口径见 [FEATURES_V30.md](FEATURES_V30.md)。
-> 构成 = 24 维历史定稿（静态 12 + K=2 窗口 6 + ant 4 + 土地利用 2）+ 道路 4 + 土地利用变化 3 − 冗余 curvature_mean 1。
-> 历史口径（24/19 维）结果保留在 §3 供对照；负采样三口径 × 分折方式结论见 §2-3。
+> **当前主线：事件窗口 34 维特征表**（训练人群 `features/event_window_features_k2_v34_train.csv`，25,636 单元，661 正样本），
+> XGBoost admin×全域 5 折 **AUC 0.8233 ± 0.0234**；完整特征定义/计算口径见 [FEATURES_V34.md](FEATURES_V34.md)。
+> 构成 = 30 维（静态 11 + K=2 窗口 6 + ant 4 + 土地利用 2 + 土地利用变化 3 + 道路 4）
+>          + 干湿循环精华 4（评审新增，逐日水位提取）。
+> 历史口径（30/24/19 维）结果保留在 §3 供对照；负采样三口径 × 分折方式结论见 §2-3。
 
 ---
+
+## 0. 版本演进速览
+
+| 主线版本 | 特征数 | 训练人群 | AUC | 关键变化 |
+|---------|--------|---------|-----|---------|
+| 24 维 | 24 | 26068 | 0.8051 ± 0.0266 | 地形+水系+土地利用+降雨 |
+| 30 维 | 30 | 26068 | 0.8223 ± 0.0243 | +道路4 +土地利用变化3 −冗余 curvature |
+| 30 维（剔水下） | 30 | 25636 | 0.8189 ± 0.0260 | 剔除 432 常年水下单元（评审） |
+| **34 维（当前）** | **34** | **25636** | **0.8233 ± 0.0234** | **+干湿循环精华4（评审新增，逐日水位）** |
+
 
 ## 1. 特征定稿（回应评审问题 2：去冗余 + 特征扩展）
 
@@ -111,7 +122,7 @@
 ### 3.1b 特征扩展至 30 维（道路 + 土地利用变化，消融收敛）
 
 > 数据源：OSM Geofabrik 重庆+湖北路网（`extract_road_features.py`）、CLCD 年度序列土地利用变化（组装于 `build_v30_features.py`）。
-> 完整特征口径见 [FEATURES_V30.md](FEATURES_V30.md)。
+> 完整特征口径见 [FEATURES_V34.md](FEATURES_V34.md)。
 
 | 特征集 | AUC | 增量 |
 |---|---|---|
@@ -132,7 +143,145 @@
 | NDVI 窗口 2 | 0.8049（−0.0171） | 保留（最强贡献） |
 | aspect 2 | 0.8193（−0.0027） | 保留（坡向不可替代） |
 | curvature_mean | 0.8223（+0.0003） | **删除**（与 TRI 相关 0.963 冗余） |
-| 水位触发 4（ant_inund/drawdown） | 0.8220（importance 全 0） | **删除**（被 inundation_fraction 吸收，见 FEATURES_V30 §水位说明） |
+| 水位触发 4（ant_inund/drawdown） | 0.8220（importance 全 0） | **删除**（被 inundation_fraction 吸收，后被逐日干湿特征取代） |
+
+### 3.1c 34 维主线（干湿循环特征，评审新增；逐日水位数据）
+
+> 数据源：`data/water/干流站点水位-0908.xlsx`（4 站逐日 2003-2021，按单元经度就近分配站点）——比旧周采样水位（1113 条）精细，可算干湿翻转。
+> 提取：`tills/parse_station_water.py` + `extract_wetdry_features.py` + `extract_wetdry_event_features.py`。
+> 完整口径见 [FEATURES_V34.md](FEATURES_V34.md) §组4。
+
+| 特征集 | 训练人群 | AUC |
+|--------|---------|-----|
+| 30 维基线 | 25636 | 0.8189 ± 0.0260 |
+| 30 + 7 干湿（37 维全量） | 25636 | 0.8201 ± 0.0210（std 降） |
+| **30 + 4 干湿精华（34 维）** | **25636** | **0.8233 ± 0.0234** |
+
+**干湿特征消融/冗余决策**：
+- 保留 4 个：`wet_dry_cycles`（干湿交替次数，评审核心）、`max_drawdown_rate`（月最大降幅，importance 0.043 干湿组最高）、
+  `ant_drawdown_3m`（事件前 3 月降幅）、`ant_inund_days_3m`（事件前 3 月被淹天数）；
+- 剔除：`dry_days_annual`（与 inundation_fraction 相关 −0.993 冗余）、`wet_episodes`（与 cycles 相关 1.00 重复）、
+  `ant_drawdown_1m`（与 3m 相关 0.74）；
+- 关键物理验证：干湿交替与浸泡时长**正交**（相关仅 0.403）；滑坡单元干湿交替更多（2.84 vs 2.34）、
+  临滑前水位降幅更大（−1.71 vs −0.81）——方向符合"干湿交替促滑"机理。
+
+### 3.1d 常年水下单元剔除（评审意见，训练人群 26068 → 25636）
+
+| 项目 | 值 |
+|------|-----|
+| 剔除判据 | 单元距水系 ≤1000m（线 buffer）AND >90% 面积 <145m（消落最低水位） |
+| 剔除数量 | 432 个（高程中位 102m，真河道/库底） |
+| 误删正样本 | 1 个（unit 16581：99% 水下仍记录 2006 滑坡，疑似点位偏差） |
+| 训练人群 | 25,636（661 正样本） |
+| 全图推理 | 432 个水下单元不参与训练，推理时回填 prob=0 / 极低易发（方案 C，见 PROJECT_OVERVIEW） |
+
+### 3.1e 34 维主线 × 按县分折 × 负采样三口径（参考跑）
+
+> 用户指定参考口径：`admin` 分折下跑负采样对照（软采样 λ=0.2 / 硬采样 4km×k=2），
+> 与 §3.1c 的 admin×全域 0.8233 构成"负采样维度"完整对照，评估 34 维主线在不同训练口径下的表现。
+> 结果文件：`results/baseline_xgb_ew_feat_k2_v34_train_madmin_soft0.2.json`、`…_madmin_np4k2.json`。
+
+| 负采样口径（admin 分折） | 全单元 AUC | 采样池 AUC（4km 邻域） | 结果文件 |
+|---|---|---|---|
+| 全域（对照，§3.1c 主线读数） | **0.8233 ± 0.0234** | — | …_v34_train_madmin.json |
+| 软采样 λ=0.2 | 0.8131 ± 0.0244 | 0.7861 ± 0.0242 | …_v34_train_madmin_soft0.2.json |
+| 硬采样 4km×k=2 | 0.7944 ± 0.0217 | 0.7354 ± 0.0277 | …_v34_train_madmin_np4k2.json |
+
+- 折级 AUC（全单元，软 / 硬）：0.7958 / 0.8333 / 0.8221 / 0.8396 / 0.7746 ｜ 0.7688 / 0.7930 / 0.8182 / 0.8198 / 0.7722；
+  折级采样池 AUC（软 / 硬）：0.7560 / 0.8020 / 0.8022 / 0.8127 / 0.7576 ｜ 0.7183 / 0.7618 / 0.7653 / 0.7400 / 0.6913；
+  折级 recall@Top10%（软 / 硬）：0.468 / 0.432 / 0.376 / 0.514 / 0.399（均值 0.438）｜ 0.373 / 0.368 / 0.344 / 0.451 / 0.392（均值 0.386）。
+- 特征重要性 Top10（全域口径）：mainstream_dist_m 0.072、river_dist_m 0.065、builtup_frac 0.041、area 0.036、road_dist_m 0.034、
+  road_density 0.034、k2_ndvi_mean 0.033、cropland_frac 0.033、k2_max30d_max 0.033、**max_drawdown_rate 0.032**；
+  硬采样下排序变化：**river_dist_m 0.063、builtup_frac 0.062 升为 #1/#2**，max_drawdown_rate 跌出 Top10（inundation_fraction 0.031 进入）。
+- 解读：① 硬采样全单元 AUC 0.8233→0.7944（**−0.029，~1.3σ，真掉分**）——训练负样本从全域 ~19k 缩至 ~1070 + 验证边界候选截断，与 24 维口径硬采样掉分（−0.022）同向且更明显；
+  ② 软采样仅 −0.010（~0.4σ，基本噪声级），且采样池 0.7861 比硬采样池 0.7354 高 **+0.051**、比 24 维软采样池 0.7782 高 +0.008——**软采样在"全单元不塌 + 邻域同环境判别力更高"两端均优于硬采样**，与 24 维口径结论一致；
+  ③ 硬采样下模型只能借 4km 邻域内样本分类，远区"高山好分"优势消失，重要性转向 river_dist/builtup 等局地机制特征、recall@Top10% 均值降至 0.386——再次印证负采样必要性与软采样作为加权口径的调和价值；
+  ④ std 三口径 0.0234（全域）/ 0.0244（软）/ 0.0217（硬）：硬采样训练集小反而折间更稳，但以大幅掉分为代价，不作推荐。
+- 参考结论：主报告仍以 admin×全域 0.8233 为统一读数；软采样作为 **GNN-B 训练加权口径**（防远区负样本偏向）可行，硬采样不采用（命令见 §5）。
+
+### 3.1f GNN 方案 B 主实验（服务器训练，admin×soft，34 维）
+
+> 配置：GraphSAGE×2 + Transformer×2（hidden 64、heads 4、dropout 0.3）、5 折 admin、软采样 λ=0.2（4km）、
+> 200 epochs / patience 20、加权 BCE（pos_weight≈38 逐折重算）。恒源云 GPU 训练，结果 `train_gnn_B.json`。
+
+| 模型（同口径：admin 分折 × 软采样 λ=0.2） | 全单元 AUC | 采样池 AUC | recall@Top10% 均值 |
+|---|---|---|---|
+| XGBoost（34 维） | **0.8131 ± 0.0244** | 0.7861 ± 0.0242 | 0.438 |
+| GNN 方案 B（GraphSAGE+Transformer） | 0.7365 ± 0.0151 | 0.6938 ± 0.0225 | 0.272 |
+
+- 折级 AUC：0.7434 / 0.7191 / 0.7603 / 0.7216 / 0.7382（std 仅 0.0151——模型稳定但整体弱于 XGB）；
+  折级池 AUC：0.6719 / 0.6740 / 0.7304 / 0.6840 / 0.7090。
+- 差距解读（−0.077）：① 34 维特征本质是**表格数据**，GBDT 在此类数据上普遍占优（与 Grinsztajn et al. 2022
+  "树模型在表格数据上仍优于深度网络"结论一致），图结构在此标签定义下（点转单元的清单数据）信息增量有限；
+  ② GNN 侧容量小（hidden 64、SAGE×2 + Transformer×2）且早停可能偏早；
+  ③ 口径差异：XGB 未做类别加权，GNN 用 pos_weight≈38 的加权 BCE；
+  ④ 方案 B 注意力训练时按 512 节点分块、验证时全图一次过——训练/评估注意力粒度不一致。
+- 排除代码问题：折间波动小且方向一致（非随机故障）；"池 AUC < 全单元 AUC"模式与 XGB 一致；
+  plan A 冒烟同量级（0.7533，spatial_kmeans×全域×50ep，口径不同仅作管线验证）。
+- 后续：plan A 同口径消融（隔离 Transformer 增益方向）；若继续提升 GNN——patience 放宽 / hidden 128 /
+  pos_weight=1 消融 / GNN-OOF 作为 XGB 输入特征（集成路线）。
+
+#### 消融扩展（第二轮：A/B 隔离 + pos_weight 扫描，同口径 admin×soft）
+
+| 配置（除注明外 pos_weight 自动≈38） | 全单元 AUC | 说明 |
+|---|---|---|
+| XGBoost（对照） | **0.8131 ± 0.0244** | 同口径最强 |
+| GNN-A（SAGE×3，无注意力） | **0.7961** | 接近 XGB（−0.017） |
+| GNN-B（+全局 Transformer，pw≈38） | 0.7365 ± 0.0151 | 比 A 差 −0.06 |
+| GNN-C（Performer 线性注意力，全图 O(N) 一致） | 0.7553 | 修正粒度：+0.019 vs B，仍 −0.041 vs A |
+| GNN-B pw=10 | 0.7188 | 降 pw 不救 B |
+| GNN-B pw=5 | 0.7245 | |
+| GNN-B pw=1 | 0.6381 | 40:1 不平衡下崩 |
+
+#### B1：TabPFN v2 表格基础模型（第三轮，同口径 admin×soft）
+
+| 配置（除注明外 pos_weight 自动≈38） | 全单元 AUC | 采样池 AUC | recall@Top10% | 说明 |
+|---|---|---|---|---|
+| XGBoost（34 维，软 λ=0.2） | 0.8131 ± 0.0244 | 0.7861 ± 0.0242 | 0.438 | 原同口径最强 |
+| **TabPFN v2（近区池上下文 12k）** | **0.8286 ± 0.0196** | **0.8051 ± 0.0269** | **0.4438** | **全口径首胜 XGB**（+0.0155 / +0.019） |
+| TabPFN v2（软等效上下文 ~15.7k） | 0.8256 ± 0.0219 | 0.8022 ± 0.0291 | 0.4435 | 同胜 XGB（+0.0125 / +0.016）；vs 12k 版逐折配对 4/5 折略低 |
+
+- 配置：TabPFN v2（default finetuned release，Hollmann et al. 2025 Nature；`Prior-Labs/TabPFN-v2-clf`，
+  免 license 门控），`fit()` 无 sample_weight（API 已核对），34 维特征表，admin×soft 协议，3 子采样种子 × 5 折。
+- **诚实标注**：上下文上限 12000 时近区负样本（~14,200/折）已超出预算，实际上下文 = 正样本全量 +
+  近区负剪至 11,465 + **远区负 0**——即"邻域池训练"而非软采样等效（软等效复跑：`--max-train 16000`，见待办）。
+- **邻域人群规模的实测修正**：4km 邻域覆盖训练人群 **~73%**（近区负 14.2k vs 远区负 5.6k/折）——
+  远大于此前 ESS 反推值；这解释了软采样 λ=0.2 与全域性能接近（被降权的远区仅 ~27%），也改写 §3.2
+  叙事中"邻域人群"的规模表述。
+- **结果解读**：① 上下文内从未出现远区负样本，全单元 AUC 仍 0.8286——对远区人群泛化强；
+  ② "训练分布对齐目标人群（邻域池）"+ 基础模型先验，两项叠加首胜 GBDT，验证了 B1 方向的价值；
+  ③ 折间稳定（std 0.0196），fold 1 略弱（0.7916–0.7942）与其余模型一致。
+- **软等效复跑（16k，上下文 ~15.7k，近区全保留 + 远区按 λ≈0.2 保留；注：fold 3 近区几乎占满预算、
+  远区仅留 137 个，其余 4 折保留率 ≈20% 符合设计）：0.8256 / 池 0.8022——仍全口径胜 XGB，
+  但逐折配对 4/5 折低于 12k 近区池版（差 −0.003，方向一致、幅度在噪声边缘）。
+  与 XGB"软 ≈ 全域"合并读：**远区负样本对 TabPFN 轻微有害、对 XGB 中性——人群构成的影响
+  模型依赖，且大于权重微调本身**。
+- **两个口径均保留入文**：12k 近区池版为 TabPFN 头条配置（标签：邻域池训练），
+  16k 软等效版作为人群构成敏感性证据；二者构成 2×3 因子表（人群构成 × 模型）的 TabPFN 行，
+  XGB 行缺 E1（全域+池 AUC）与 E2（近区池全量，`--neg-sampling proximity --neg-km 4 --neg-k 27`）两格。
+
+- **Transformer 组件同口径 −0.06 有害**（A 0.7961 → B 0.7365）：全局注意力训练时按 512 节点随机分块、
+  验证时全图 25,636 一次过——注意力粒度训练/评估不一致；admin 分折下全局注意力易学到"县级捷径"，跨县不可迁移。
+- **plan C 验证（0.7553）**：把注意力换成全图 O(N) 线性注意力（Performer）、训练/评估粒度完全一致后，
+  较 B 回升 +0.019——证实"粒度不一致"确是 B 的病因之一；但仍低于 A −0.041——
+  **"单元间全局注意力"即使实现正确也不增益**：滑坡风险由单元自身特征 + 邻域决定，
+  全局混合 2.5 万个单元注入的是噪声。B < C < A 的单调关系构成完整负结果证据链。
+- **pos_weight 扫描不救 B**：38 > 5 > 10 >> 1——pw=1 时 2.6% 正样本无加权被完全淹没；B 的瓶颈在注意力结构而非类别加权。
+- **B 的过拟合机理**（日志）：val_auc 于 epoch 17–20 见顶后下跌、train loss 0.5→0.09——pw≈38 使 ~133 个正样本
+  占约一半损失质量被快速记忆；早停已保存峰值，放宽 patience 无益。
+- 注意力结论：单元间全局注意力方向关闭（B/C 双验证）；注意力的正确落点是**特征间**（A1 FT-Transformer）
+  或**图邻域内**（A2 局部注意力）。下一步：B1 TabPFN 已首跑胜出（见下）、A1/A4、OOF 堆叠。
+
+#### 模型线小结（第三轮 B1 后）
+
+| 模型 | 全单元 AUC（admin×soft） | 采样池 AUC |
+|---|---|---|
+| **TabPFN v2（邻域池 12k）** | **0.8286 ± 0.0196** | **0.8051 ± 0.0269** |
+| TabPFN v2（软等效 16k） | 0.8256 ± 0.0219 | 0.8022 ± 0.0291 |
+| XGBoost（34 维） | 0.8131 ± 0.0244 | 0.7861 ± 0.0242 |
+| GNN-A（纯 SAGE×3） | 0.7961 | — |
+| GNN-C（Performer 全图） | 0.7553 | — |
+| GNN-B（+全局 Transformer） | 0.7365 ± 0.0151 | 0.6938 ± 0.0225 |
 
 ### 3.2 历史口径（19 维）：分折方式 × 负采样口径
 
@@ -174,7 +323,8 @@
 2. **硬采样在按县分折下掉分、软采样调和了矛盾**：admin 折下硬采样全单元 AUC 0.7409→0.7199（训练数据缩水 + 边界候选截断）；软采样（λ=0.2）回升至 0.7375 且 std 减半（0.0143），同时采样池 AUC 0.7194 高于硬采样——**全单元不降 + 负采样价值体现两者兼得**。
 3. **跨县泛化成立**：模型在从未见过的县上 AUC 0.7226 ± 0.0162，与域内 5 折同量级——特征模式可迁移，未过拟合特定县份。
 4. **分折方式影响 AUC 读数**：按县分折 > 跨县留出 > KMeans（19 维口径 0.7409 / 0.7226 / 0.7099）——三者"测试人群"定义不同，汇报时作为方法对比而非优劣判定。
-5. **负采样 vs 模型架构**：负采样是"任务定义/评估口径"维度，与 Transformer 的"表达能力"维度正交；本表全部为 XGBoost 结果，GNN-B 版待服务器训练后补充（`train_gnn.py` 已支持全部参数）。
+5. **模型架构对比（GNN 消融完成：A/B/C 三方案）**：同口径（admin×软采样 λ=0.2）下 XGBoost 0.8131 > **GNN-A（纯 SAGE）0.7961** > GNN-C（Performer 全图注意力）0.7553 > GNN-B（全局 Transformer 分块）0.7365——图消息传递已接近 GBDT（−0.017）；**单元间注意力无论实现是否正确均不增益**（C 修正训练/评估粒度后较 B 回升 +0.019 证实病因，但仍低于 A），注意力应转向特征间（FT-Transformer）或邻域内（局部注意力）/ OOF 集成（§3.1f）。负采样是"任务定义/评估口径"维度，与模型架构维度正交。
+6. **表格基础模型首胜 GBDT（TabPFN v2，§3.1f B1）**：同口径下 TabPFN v2 两个配置均双超 XGBoost——近区池 12k **0.8286 ± 0.0196 / 池 0.8051**（+0.0155 / +0.019）、软等效 16k 0.8256 / 池 0.8022（+0.0125 / +0.016）；逐折配对 4/5 折近区池更高，"人群构成的影响模型依赖且大于权重微调"（远区负样本对 TabPFN 轻微有害、对 XGB 中性）。实测修正：4km 邻域覆盖训练人群 ~73%，软采样 λ=0.2 与全域接近的机理即在于此；软采样定位调整为"口径自洽的稳健设计"而非性能贡献。
 
 ---
 
@@ -204,8 +354,25 @@ python baseline_xgb.py --features-csv features/_archive/event_window_features_k2
 python cross_county_validate.py --splits 5 --test-frac 0.3 --seed 42 \
     --neg-sampling none                                   # 0.7226
 
-# GNN-B（服务器）
+# XGBoost（34 维主线，训练人群 25636，见 §3.1c/e）
+python baseline_xgb.py --features-csv features/event_window_features_k2_v34_train.csv \
+    --folds 5 --method admin                              # 0.8233（admin×全域，主线读数）
+python baseline_xgb.py --features-csv features/event_window_features_k2_v34_train.csv \
+    --folds 5 --method admin --neg-sampling soft --neg-km 4 --neg-lam 0.2   # 0.8131 / 池 0.7861（参考）
+python baseline_xgb.py --features-csv features/event_window_features_k2_v34_train.csv \
+    --folds 5 --method admin --neg-sampling proximity --neg-km 4 --neg-k 2  # 0.7944 / 池 0.7354（参考）
+
+# GNN-B（服务器，已跑：0.7365 ± 0.0151 / 池 0.6938，§3.1f）
 python train_gnn.py --plan B --folds 5 --fold-method admin \
+    --neg-sampling soft --neg-km 4 --neg-lam 0.2
+# GNN-A 同口径消融（已跑：0.7961，Transformer 隔离——A>B 差 −0.06）
+python train_gnn.py --plan A --folds 5 --fold-method admin \
+    --neg-sampling soft --neg-km 4 --neg-lam 0.2
+# GNN-B pos_weight 扫描（已跑：pw1 0.6381 / pw5 0.7245 / pw10 0.7188，均不及自动 38）
+python train_gnn.py --plan B --folds 5 --fold-method admin \
+    --neg-sampling soft --neg-km 4 --neg-lam 0.2 --pos-weight 1   # 5 / 10 同理
+# GNN-C（Performer 线性注意力；已跑：0.7553——粒度修正 +0.019 vs B，仍低于 A，§3.1f）
+python train_gnn.py --plan C --folds 5 --fold-method admin \
     --neg-sampling soft --neg-km 4 --neg-lam 0.2
 ```
 
@@ -223,6 +390,16 @@ python train_gnn.py --plan B --folds 5 --fold-method admin \
 | baseline_xgb_ew_feat_k2_np{2,3,4}k2.json / np3k{1,3}.json | 硬采样半径/数量敏感性（19 维） |
 | baseline_xgb_ew_feat_k2_soft0.2.json | KMeans × 软采样（19 维） |
 | baseline_xgb_ew_feat_k2_madmin{,_np4k2,_soft0.2,_soft0.5}.json | 按县分折 × 负采样（19 维历史） |
+| baseline_xgb_ew_feat_k2_v34_train_madmin.json | 按县分折 × 全域（**34 维主线 0.8233**，§3.1c） |
+| baseline_xgb_ew_feat_k2_v34_train_madmin_soft0.2.json | 按县分折 × 软采样 λ=0.2（34 维参考 0.8131/池 0.7861，§3.1e） |
+| baseline_xgb_ew_feat_k2_v34_train_madmin_np4k2.json | 按县分折 × 硬采样 4km×k=2（34 维参考 0.7944/池 0.7354，§3.1e） |
+| train_gnn_B.json（服务器） | GNN 方案 B 主实验：admin×软采样（34 维 0.7365/池 0.6938，§3.1f） |
+| train_gnn_A_soft.json（服务器） | GNN-A 同口径消融（0.7961，隔离 Transformer −0.06，§3.1f） |
+| train_gnn_C_soft.json（服务器） | GNN-C Performer 消融（0.7553，注意力粒度修正验证，§3.1f） |
+| baseline_tabpfn_madmin_soft0.2_ctx12k_nearonly.json（服务器） | TabPFN v2 近区池 12k（0.8286/池 0.8051，全口径首胜 XGB，头条配置，§3.1f B1） |
+| baseline_tabpfn_madmin_soft0.2.json（服务器，16k 版） | TabPFN v2 软等效 16k（0.8256/池 0.8022，人群构成敏感性证据，§3.1f B1） |
+| [MODEL_UPGRADE_PLAN.md](MODEL_UPGRADE_PLAN.md) | 模型优化方案与依据总表（A/B/C/D 路线、文献依据、执行状态与决策记录） |
+| train_gnn_B_pw{1,5,10}.json（服务器） | GNN-B pos_weight 扫描（0.6381 / 0.7245 / 0.7188，§3.1f） |
 | cross_county_xgb.json / cross_county_xgb_np4k2.json | 跨县留出 × 全域 / 硬采样（19 维历史） |
 
 ### 6.2 归档（results/archive/，历史实验）

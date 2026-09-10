@@ -184,6 +184,68 @@
 
 **一句话总结**：SMOTE 在"特征空间"造假样本，我们选择在"真实空间"挑更难的负样本——后者既保留了物理真实性，又通过软采样把"全域信息"和"邻近难点"结合，实测更稳。
 
+### 4.5 方法文献依据（写论文用）
+
+> 本研究的空间邻近软采样（4km 缓冲内权重 1.0、远区降权 λ=0.2）不是凭空设计，
+> 而是"非滑坡样本（负样本）选择策略"这一研究脉络下的加权实现。以下是可直接引用的文献支撑，
+> 按"综述定位 → 三峡同源实证 → 理论根基"三层组织。
+
+#### 4.5.1 综述级定位（最重要的引文）
+
+**非滑坡样本选择策略综述**：确认"缓冲区采样（buffer-based）优于全域随机采样"，
+即把负样本限定在滑坡单元空间邻近范围内，可缓解负样本与滑坡环境差异过大导致的模型偏差。
+本研究的 4km 缓冲即属于该类策略。
+
+- Huang F. et al. *Non-landslide sample for landslide susceptibility prediction modeling:
+  A review of selection strategies and their influence rules.* Journal of Rock Mechanics
+  and Geotechnical Engineering.
+  来源页：[jrmge.cn/abstract-2395.html](https://www.jrmge.cn/abstract-2395.html)
+
+**半监督不平衡理论综述**（成都理工范宣梅团队）：从类别不平衡与半监督理论角度，
+论证负样本来源/选取对易发性模型可信度的关键影响，为"负样本不该全域乱取"提供理论支撑。
+
+- *A comprehensive review of key issues in landslide susceptibility prediction and their
+  solutions using semi-supervised imbalanced theory.* 岩石力学与工程学报.
+  来源页：[sciengine.com/CJRME/doi/10.3724/1000-6915.jrme.2024.1003](https://www.sciengine.com/CJRME/doi/10.3724/1000-6915.jrme.2024.1003)
+
+#### 4.5.2 实证级支撑（同研究区/类加权）
+
+| 论文 | 支撑点 |
+|------|--------|
+| *Combining a class-weighted algorithm and ML models in LSM: Wanzhou section of the Three Gorges Reservoir*（Computers & Geosciences） | **三峡库区万州段**（与本研究同源）用**类别加权算法**处理正负不平衡——支持"对样本加权而非丢弃"的路线 |
+| *How do landslide and non-landslide sampling strategies impact LSM? A catchment-scale case study from China* | 系统对比采样策略，证明"限制非滑坡样本来源范围"显著影响模型可信度与泛化 |
+| *Impact of negative sampling strategies on landslide susceptibility assessment*（Advances in Space Research, 2025） | 最新实证：负采样策略选择直接影响易发性评估结果 |
+
+#### 4.5.3 理论根基
+
+软采样（远区降权、不删样本）本质是两类成熟理论的结合，这是它"站得住"的底层原因：
+
+1. **代价敏感学习 / 重要性加权**（cost-sensitive learning, importance weighting）：
+   样本加权用于修正"经验分布 ≠ 目标分布"。本研究的远区权重 λ=0.2 即标准的重要性加权——
+   目标人群 = 滑坡 4km 邻域（难分的对比样本），远区样本降权使其不主导训练。
+2. **滑坡空间自相关**（spatial autocorrelation）：滑坡空间聚团，
+   邻近滑坡的单元环境更相似、更适合充当"难负样本"——4km 空间约束的前提。
+
+#### 4.5.4 与 4km+HSOM 硬采样的谱系关系（写作定位）
+
+> 文献中"在空间上限定负样本"与"在特征空间筛选负样本"是两条可正交的路线。
+> 本研究用 4km 缓冲完成**空间约束**，池内负样本的处理可采取两种哲学：
+> - **软（本研究采用）**：池内外样本全保留，仅按距离加权（λ=0.2）——重要性加权路线，
+>   避免硬丢弃造成的信息损失与训练样本缩减；
+> - **硬（备选对照，如 4km 缓冲 + HSOM 特征聚类精选）**：池内经特征聚类只留"像滑坡"的负样本，
+>   池外完全剔除——环境相似性采样路线。
+>
+> 论文写法建议：将两者定位为"共享 4km 空间约束、处理哲学互补（加权 vs 筛选）"的系统对照，
+> 而非"等价或替代"。评估时软采样用全域 AUC（远区样本训练时见过），硬采样须用采样池 AUC，
+> 两者 AUC 不可直接横比，应各报双口径（全域 + 采样池）。
+
+#### 4.5.5 引用时的定位话术（可直接用）
+
+> 本研究采用基于滑坡空间邻近性的加权负样本策略（4 km 缓冲区权重 1.0、远区降权 λ=0.2），
+> 属于非滑坡样本选择中的"缓冲区—距离加权"类别（Huang et al., JRMGE）。该策略依据
+> 滑坡空间自相关性与类别不平衡理论，相较全域随机采样可缓解负样本环境偏差，
+> 同时通过加权（而非丢弃）保留全部样本信息，避免硬采样带来的训练样本缩减。
+
 ---
 
 ## 五、一句话汇报稿（可直接用）
