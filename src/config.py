@@ -14,31 +14,34 @@ ROOT = Path(__file__).resolve().parent.parent
 
 DATA_DIR = ROOT / 'data'
 TERRAIN_TIF = DATA_DIR / 'terrain' / 'Terrain_MultiBand.tif'           # 5波段地形栅格（本地已有）
-SLOPE_UNITS_SHP = DATA_DIR / 'slope_units' / 'slope_units_fixed.shp'   # 修复后的斜坡单元 shp（全量 26068）
+# ---- 斜坡单元（v2 唯一 ID 体系，2026-09 重建）----
+# 出图人口 = 合并"大面套小面"后全部单元 25,939；训练人口 = 再剔除河道内单元 430 -> 25,509
+# 唯一 ID: unit_id = 1..N（两套人口共用同一套取值）；对照表 features/v2/unit_id_map_v2.csv
+SLOPE_UNITS_SHP = DATA_DIR / 'slope_units' / 'slope_units_final.shp'              # 全量 25939（出图）
+SLOPE_UNITS_TRAIN_SHP = DATA_DIR / 'slope_units' / 'slope_units_final_train.shp'  # 训练 25509
+SLOPE_UNITS_TRAIN_COUNT_CSV = DATA_DIR / 'slope_units' / 'slope_units_final_train_count.csv'
+# 历史口径（已废弃，仅留档）：slope_units_fixed.shp(26068) / slope_units_train.shp(25636)
 LANDSLIDE_XLS = DATA_DIR / 'landslide' / '消落带隐患点.xls'             # 滑坡隐患点 Excel（含日期/经纬度）
 WATER_XLS = DATA_DIR / 'water' / '水位.xlsx'                            # 逐日水位 Excel（日期/水位 列名自动识别）
-SLOPE_UNITS_COUNT_CSV = DATA_DIR / 'slope_units' / 'slope_units_count.csv'  # QGIS 计算点在多边形内导出（全量）
-# 历史方案 B 文件（25884 研究单元）保留作备份；当前主线改用全量 26068——
-# 184 个"仅蓄水前滑坡"单元并入负样本（研究期未滑坡，label=0），全图训练/出图无空缺
-STUDY_SLOPE_UNITS_SHP = DATA_DIR / 'slope_units' / 'study_units_fixed.shp'
-STUDY_UNITS_COUNT_CSV = DATA_DIR / 'slope_units' / 'study_units_count.csv'
+SLOPE_UNITS_COUNT_CSV = DATA_DIR / 'slope_units' / 'slope_units_final_count.csv'  # 全量计数（v2）
+# 历史方案 B 文件（25,884 研究单元）已废弃并归档到 archive/v1/；以下两常量统一指向 v2 全量人口，
+# 避免遗留断链（它们只被 --weight-scheme count / 可视化脚本使用）
+STUDY_SLOPE_UNITS_SHP = SLOPE_UNITS_SHP                       # = slope_units_final.shp（25,939）
+STUDY_UNITS_COUNT_CSV = SLOPE_UNITS_COUNT_CSV                 # = slope_units_final_count.csv
 
 
 def study_shp_path():
-    """建模/出图单元 shp：若存在 -train 人群（剔除常年水下 471 单元后的 25597）则用之
-    （训练只学可滑坡坡体）；推理/出图时 471 个水下单元回填 prob=0/极低级（见 predict 脚本）。
-    无 -train 文件时回退全量 26068。"""
-    train_shp = DATA_DIR / 'slope_units' / 'slope_units_train.shp'
-    if train_shp.exists():
-        return train_shp
+    """建模/出图单元 shp（v2）：训练人群 25,509，唯一 ID unit_id=1..25939。
+    推理/出图时 430 个河道内单元回填 prob=0（见 predict 脚本）。"""
+    if SLOPE_UNITS_TRAIN_SHP.exists():
+        return SLOPE_UNITS_TRAIN_SHP
     return SLOPE_UNITS_SHP
 
 
 def study_count_csv_path():
     """建模单元计数表：与 study_shp_path 同人群。"""
-    train_cnt = DATA_DIR / 'slope_units' / 'slope_units_train_count.csv'
-    if train_cnt.exists():
-        return train_cnt
+    if SLOPE_UNITS_TRAIN_COUNT_CSV.exists():
+        return SLOPE_UNITS_TRAIN_COUNT_CSV
     return SLOPE_UNITS_COUNT_CSV
 
 GEE_DIR = DATA_DIR / 'gee'
@@ -53,15 +56,17 @@ WATER_FEATURES_CSV = FEATURES_DIR / 'water_features.csv'
 WATER_NETWORK_FEATURES_CSV = FEATURES_DIR / 'water_network_features.csv'   # 水系距离/密度（extract_water_network_features.py）
 LANDUSE_MATRIX_CSV = FEATURES_DIR / 'landuse_unit_matrix.csv'   # CLCD 年度土地利用矩阵（extract_landuse_features.py）
 MONTHLY_WATER_CSV = FEATURES_DIR / 'monthly_water_levels.csv'           # extract_water_features 副产物
-FEATURES_CSV = FEATURES_DIR / 'features.csv'                            # 静态全窗口特征表（历史对照口径）
-EVENT_WINDOW_FEATURES_CSV = FEATURES_DIR / 'event_window_features_k2_v34_train.csv'  # 当前主线：34 维特征表（-train 人群 25636，剔除 432 常年水下单元；661 正样本；XGB AUC 0.8233）
+FEATURES_CSV = FEATURES_DIR / 'v2' / 'features_v2_train.csv'   # 默认特征表 = v2 主线（baseline_xgb 未显式传 --features-csv 时用）
+EVENT_WINDOW_FEATURES_CSV = FEATURES_DIR / 'v2' / 'features_v2_train.csv'   # 主线 34 维（v2 口径，训练 25,509）
+EVENT_WINDOW_FEATURES_FULL_CSV = FEATURES_DIR / 'v2' / 'features_v2.csv'    # 全量 25,939（出图）
 # 历史对照：event_window_features_k2_v30_train.csv（30 维，0.8189）保留备用
-GRAPH_NPZ = FEATURES_DIR / 'graph_train.npz'                                  # edge_index（-train 人群）
-OOF_PREDICTIONS_CSV = FEATURES_DIR / 'oof_predictions_train.csv'              # 交叉验证外推预测
-COUNTY_UNITS_CSV = FEATURES_DIR / 'county_units_train.csv'                    # 单元→县级归属（-train 人群）
-# 年度 zonal mean 矩阵缓存（import_gee_unit_stats.py 写入，extract_temporal_features 读取）
-NDVI_MATRIX_CSV = FEATURES_DIR / 'ndvi_unit_matrix.csv'
-RAIN_MATRIX_CSV = FEATURES_DIR / 'rain_unit_matrix.csv'
+GRAPH_NPZ = FEATURES_DIR / 'v2' / 'graph_v2_train.npz'                          # 图结构（v2 人群，待 build_graph 重建）
+OOF_PREDICTIONS_CSV = FEATURES_DIR / 'v2' / 'oof_predictions_v2_train.csv'     # 交叉验证外推预测（v2）
+COUNTY_UNITS_CSV = FEATURES_DIR / 'v2' / 'county_units_v2_train.csv'           # 单元→县级归属（v2 训练人群）
+UNIT_ID_MAP_V2 = FEATURES_DIR / 'v2' / 'unit_id_map_v2.csv'                    # ★唯一权威 ID 对照表
+# 年度 zonal mean 矩阵缓存 → v2 源数据目录（GEE 导出，旧全量 Id 口径；v2_build_gee_features.py 读取）
+NDVI_MATRIX_CSV = FEATURES_DIR / 'v2' / 'sources' / 'ndvi_unit_matrix.csv'
+RAIN_MATRIX_CSV = FEATURES_DIR / 'v2' / 'sources' / 'rain_unit_matrix.csv'
 
 MODEL_DIR = ROOT / 'models'
 PRED_DIR = ROOT / 'predictions'
