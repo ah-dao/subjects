@@ -11,14 +11,15 @@
 | 2 | ⭐ **`出图与归因_SOP.md`** | 双口径叙事 + 三条流水线 + 产物校验点 + **答辩证据对应表** | 现行 |
 | 3 | ⭐ **`地质机理与消融_v2.md`** | 第 10 轮消融（732 次运行）与 M1–M9 机理证据链，含读表指南与决策记录 | 现行 |
 | 4 | ⭐ **`FEATURE_SELECTION_V2.md`** | 43 → 4 维的筛选过程；§8 解释"物理真实但重要性低"；§9 后续进展 | 现行 |
-| 5 | `脚本索引.md` | 全部脚本的一句话说明（自动生成） | 自动 |
-| 6 | `DATA_SPEC_V2.md` | 数据规格：源数据、字段、CRS、口径 | 现行 |
-| 7 | `FEATURES_V2.md` | 34 维特征逐项定义与提取口径 | 现行 |
-| 8 | `NEW_FACTORS_V2.md` | 四类地质因子的早期消融（§3.3 的 9 列推荐集**已作废**，见文首提示） | 历史+标注 |
-| 9 | `负采样/依据清单.md` | 负采样/病例-对照的方法学依据（L1–L7）、方案要素对照、§6 模型部分依据待更新 | 现行（部分待补） |
-| 10 | `GEE_UNIT_STATS_MONTH.md` | GEE 月度单元统计的数据字典（CHIRPS/Landsat 口径） | 现行 |
-| 11 | `REPORT_V2_MIGRATION.md` | v1 → v2 人口/ID 迁移报告（含 `fan` 语义更正记录） | 现行 |
-| 12 | `EXPERIMENT_RESULTS.md` · `PROJECT_OVERVIEW.md` · `QUICKSTART.md` · `SERVER_TRAIN.md` · `MODEL_UPGRADE_PLAN.md` | v1 时期的实验记录/总览/上手指南/服务器训练/模型升级计划 | 历史（⚠ 其中 GNN 部分已非主线） |
+| 5 | ⭐ **`当前模型方案.md`** | **模型线**：M1 库水位算子 / M2 MIL 单元袋 / M3 TabPFN（T1–T4）；统一判定标准、已证伪路线、服务器方案与排期 | 现行（待执行） |
+| 6 | `脚本索引.md` | 全部脚本的一句话说明（自动生成） | 自动 |
+| 7 | `DATA_SPEC_V2.md` | 数据规格：源数据、字段、CRS、口径 | 现行 |
+| 8 | `FEATURES_V2.md` | 34 维特征逐项定义与提取口径 | 现行 |
+| 9 | `NEW_FACTORS_V2.md` | 四类地质因子的早期消融（§3.3 的 9 列推荐集**已作废**，见文首提示） | 历史+标注 |
+| 10 | `负采样/依据清单.md` | 负采样/病例-对照的方法学依据（L1–L7）、方案要素对照、§6 模型部分依据待更新 | 现行（部分待补） |
+| 11 | `GEE_UNIT_STATS_MONTH.md` | GEE 月度单元统计的数据字典（CHIRPS/Landsat 口径） | 现行 |
+| 12 | `REPORT_V2_MIGRATION.md` | v1 → v2 人口/ID 迁移报告（含 `fan` 语义更正记录） | 现行 |
+| 13 | `EXPERIMENT_RESULTS.md` · `PROJECT_OVERVIEW.md` · `QUICKSTART.md` · `SERVER_TRAIN.md` · `MODEL_UPGRADE_PLAN.md` | v1 时期的实验记录/总览/上手指南/服务器训练/模型升级计划 | 历史（⚠ 其中 GNN 与 TabPFN 0.8286 部分已作废） |
 
 `docs/archive/`：`FEATURES_V30_archived.md`、`FEATURES_V34.md`（v3.0/v3.4 特征口径归档）。
 
@@ -36,6 +37,7 @@
 ## 文档维护约定
 
 1. **结论必须写进 docs，不散落在聊天记录里**：新实验 → 新的 `results/*.txt` + 在对应 docs 增补一节。
+   **模型线的工作只改 `docs/当前模型方案.md`**（方案、排期、判定标准都在这份里）。
 2. **改了特征/口径，必须同步四处**：`docs/地质机理与消融_v2.md`（决策记录）、`docs/出图与归因_SOP.md`
    （命令与验收数字）、`deliverables/列状态_保留与弃用.csv`（列状态）、`docs/FEATURE_SELECTION_V2.md`（筛选史）。
 3. **过时结论不要直接删**，加"⚠ 后续状态"标注（例：`NEW_FACTORS_V2.md` §3.3），保留推理链。
