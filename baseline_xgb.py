@@ -1,4 +1,4 @@
-﻿"""
+"""
 XGBoost 基线（PROJECT_OVERVIEW.md）。
 
 用 22 维特征验证特征质量：5 折交叉验证输出 AUC，并检查水位特征是否排前列
@@ -27,7 +27,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
-from src.config import (FEATURES_CSV, study_shp_path, RESULT_DIR, STUDY_UNITS_COUNT_CSV,
+from src.config import (FEATURES_CSV, FEATURES_DIR, study_shp_path, RESULT_DIR, STUDY_UNITS_COUNT_CSV,
                         K_FOLDS, FOLD_METHOD, SEED, ALL_FEATURES, COUNTY_UNITS_CSV,
                         NEG_SAMPLING, NEG_KM, NEG_K, NEG_LAM, NEG_SEED)
 from src.dataset import (load_features, load_centroids, load_centroids_utm,
@@ -58,14 +58,24 @@ def main():
     parser.add_argument('--weight-scheme', default='none', choices=['none', 'count'],
                         help='逐样本权重：none=不加权；count=正样本按研究期滑坡次数加权')
     parser.add_argument('--neg-sampling', default=NEG_SAMPLING,
-                        choices=['none', 'proximity', 'soft'],
+                        choices=['none', 'proximity', 'soft', 'matched'],
                         help='负样本口径：none=全域（对照）；proximity=时空邻近硬采样'
                              '（每正样本邻域抽 k 个）；soft=软负采样（邻近权重1、远区λ，'
-                             '不删样本仅加权；λ=0 退化为硬采样，λ=1 退化为全域）')
+                             '不删样本仅加权；λ=0 退化为硬采样，λ=1 退化为全域）；'
+                             'matched=病例-对照匹配采样（按高程×坡度分层配平 + 排除正样本 '
+                             'footprint；缓解"地形位置"混杂主导，用于机理分析与特征筛选）')
     parser.add_argument('--neg-km', type=float, default=NEG_KM, help='时空邻近半径（km）')
-    parser.add_argument('--neg-k', type=int, default=NEG_K, help='每正样本抽取负样本数（proximity 用）')
+    parser.add_argument('--neg-k', type=int, default=NEG_K, help='每正样本抽取负样本数')
     parser.add_argument('--neg-lam', type=float, default=NEG_LAM, help='软负采样远区负样本权重（soft 用）')
     parser.add_argument('--neg-seed', type=int, default=NEG_SEED, help='负采样种子')
+    parser.add_argument('--match-radius-km', type=float, default=4.0,
+                        help='匹配采样缓冲区半径（km，matched 用）')
+    parser.add_argument('--match-exclude-m', type=float, default=150.0,
+                        help='匹配采样排除"距正样本 < 该距离(m)"的 footprint 负样本')
+    parser.add_argument('--match-elev-bin', type=float, default=20.0, help='匹配分层高程箱宽（m）')
+    parser.add_argument('--match-slope-bin', type=float, default=10.0, help='匹配分层坡度箱宽（°）')
+    parser.add_argument('--match-far-frac', type=float, default=0.0,
+                        help='匹配采样中"全域随机负样本"占比（0~0.5，缓解支撑域缺口）')
     args = parser.parse_args()
 
     csv_path = Path(args.features_csv)
@@ -73,6 +83,7 @@ def main():
         raise FileNotFoundError(f'未找到特征表: {csv_path}')
 
     import xgboost as xgb
+    from sklearn.metrics import roc_auc_score
 
     if args.features:
         all_feats = [f.strip() for f in args.features.split(',') if f.strip()]
@@ -100,6 +111,8 @@ def main():
         tag += f'_np{int(args.neg_km)}k{args.neg_k}'
     elif args.neg_sampling == 'soft':
         tag += f'_soft{args.neg_lam}'
+    elif args.neg_sampling == 'matched':
+        tag += f'_mt{int(args.neg_k)}f{int(round(args.match_far_frac * 100))}'
     if exclude:
         tag += '_excl_' + '_'.join(exclude).replace(',', '_')
     if exclude:
@@ -111,6 +124,29 @@ def main():
     unit_id, X, y = load_features(csv_path, features=use_features)
     centroids = load_centroids(study_shp_path())
     assert len(unit_id) == len(centroids), '特征表与 shp 行数不一致'
+
+    # ---------- 匹配采样所需的混杂变量与分层键（与特征臂无关, 固定取自分组表） ----------
+    match_keys = match_elev = match_slope = match_inund = None
+    if args.neg_sampling == 'matched':
+        import pandas as _pd
+        _aux = _pd.DataFrame({'unit_id': unit_id})
+        _t = _pd.read_csv(FEATURES_DIR / 'v2' / 'groups' / 'terrain.csv',
+                          usecols=['unit_id', 'elevation_mean', 'slope_mean'])
+        _w = _pd.read_csv(FEATURES_DIR / 'v2' / 'groups' / 'water.csv',
+                          usecols=['unit_id', 'inundation_fraction'])
+        _aux = _aux.merge(_t, on='unit_id', how='left').merge(_w, on='unit_id', how='left')
+        match_elev = _aux['elevation_mean'].values.astype(np.float64)
+        match_slope = _aux['slope_mean'].values.astype(np.float64)
+        match_inund = _aux['inundation_fraction'].values.astype(np.float64)
+        for _v in (match_elev, match_slope, match_inund):          # 无 DEM 覆盖单元按列均值填补
+            _m = ~np.isfinite(_v)
+            if _m.any():
+                _v[_m] = np.nanmean(_v)
+        match_keys = (np.floor(match_elev / args.match_elev_bin).astype('int64') * 100000
+                      + np.floor(match_slope / args.match_slope_bin).astype('int64'))
+        print(f'[匹配分层] 高程 {args.match_elev_bin:g} m × 坡度 {args.match_slope_bin:g}° | '
+              f'缓冲区 {args.match_radius_km:g} km | 排除 footprint < {args.match_exclude_m:g} m | '
+              f'每正样本 k={args.neg_k} | 全域负样本占比 {args.match_far_frac:g}')
 
     sample_weight = None
     if args.weight_scheme != 'none':
@@ -129,12 +165,11 @@ def main():
 
     print(f'XGBoost 基线 | {args.folds} 折 | 方法: {args.method} | 正样本: {int(y.sum())}/{len(y)}')
     aucs, aucs_pool, recalls, importances = [], [], [], []
+    match_diag = []
     cent_utm = load_centroids_utm(study_shp_path()) \
-        if args.neg_sampling in ('proximity', 'soft') else None
+        if args.neg_sampling in ('proximity', 'soft', 'matched') else None
     for fold in range(args.folds):
         tr_idx, va_idx = fold_indices(fold_id, fold)
-        min_, max_ = minmax_fit(X[tr_idx])
-        Xn = minmax_apply(X, min_, max_)
         fit_sw = None
 
         # ---------- 负样本口径（按折计算，防跨折信息） ----------
@@ -175,11 +210,57 @@ def main():
                 ess = float((ww.sum() ** 2) / (ww ** 2).sum())
                 print(f'[软负采样] {args.neg_km}km, λ={args.neg_lam} | 训练折邻近负 {n_near}'
                       f' / 远区负 {n_far} | 有效样本量 ESS {ess:.0f}（远区按 λ 降权）')
+        elif args.neg_sampling == 'matched':
+            # ---------- 病例-对照匹配采样（方案1）----------
+            from src.dataset import matched_negatives
+            tr_pos = tr_idx[y[tr_idx] == 1]
+            va_pos = va_idx[y[va_idx] == 1]
+            picked, st = matched_negatives(cent_utm, y, tr_pos, match_keys,
+                                           d_km=args.match_radius_km,
+                                           exclude_m=args.match_exclude_m,
+                                           k=args.neg_k, far_frac=args.match_far_frac,
+                                           seed=args.neg_seed + fold, candidate_idx=tr_idx)
+            keep = np.concatenate([tr_pos, picked]).astype(int)
+            trainable = np.zeros(len(y), dtype=bool)
+            trainable[keep] = True
+            near_va = proximity_mask(cent_utm, y, va_pos, args.neg_km, candidate_idx=va_idx)
+            eval_pool = np.zeros(len(y), dtype=bool)
+            eval_pool[va_pos] = True
+            eval_pool[near_va] = True
+
+            # ---------- 平衡诊断: 正负样本在混杂变量上的 SMD 与"残留混杂 AUC" ----------
+            if len(picked) > 0:
+                def _smd(a, b):
+                    a, b = np.asarray(a, float), np.asarray(b, float)
+                    return float((a.mean() - b.mean()) /
+                                 np.sqrt((a.var() + b.var()) / 2 + 1e-12))
+                smd = {'elevation': _smd(match_elev[tr_pos], match_elev[picked]),
+                       'slope': _smd(match_slope[tr_pos], match_slope[picked]),
+                       'inundation': _smd(match_inund[tr_pos], match_inund[picked])}
+                from sklearn.linear_model import LogisticRegression
+                Zm = np.column_stack([match_elev[keep], match_slope[keep], match_inund[keep]])
+                lr = LogisticRegression(max_iter=1000).fit(Zm, y[keep])
+                ca = float(roc_auc_score(y[keep], lr.predict_proba(Zm)[:, 1]))
+                match_diag.append({'fold': fold, 'smd': smd, 'confound_auc': ca,
+                                   'n_train': int(len(keep)), 'n_neg': int(len(picked))})
+                if fold == 0:
+                    print(f'[匹配负采样] 半径 {args.match_radius_km:g} km | 正样本 {len(tr_pos)} '
+                          f'(成功匹配 {st["matched_pos"]}, 落空 {st["dropped_pos"]}) | '
+                          f'负样本 {st["matched"]} 匹配 + {st["far"]} 全域 = {len(picked)} | '
+                          f'池内可用 {st["core_pool"]}')
+                    print(f'[平衡诊断] SMD: 高程 {smd["elevation"]:+.3f} | 坡度 {smd["slope"]:+.3f} '
+                          f'| 淹没 {smd["inundation"]:+.3f} | 残留混杂 AUC {ca:.4f} '
+                          f'(越接近 0.5 越好)')
+            fit_sw = None
         else:
             trainable = np.ones(len(y), dtype=bool)          # 全域：全部参与
             eval_pool = np.ones(len(y), dtype=bool)
 
         tr_fit = tr_idx[trainable[tr_idx]]
+        # 匹配采样时 min-max 只在"实际参与训练的子集"上拟合(该子集即病例-对照样本本身)
+        fit_idx = tr_fit if (args.neg_sampling == 'matched' and len(tr_fit)) else tr_idx
+        min_, max_ = minmax_fit(X[fit_idx])
+        Xn = minmax_apply(X, min_, max_)
         model = xgb.XGBClassifier(n_estimators=300, max_depth=5, learning_rate=0.05,
                                   subsample=0.8, colsample_bytree=0.8,
                                   eval_metric='auc', random_state=args.seed + fold,
@@ -247,6 +328,12 @@ def main():
         'neg_sampling': args.neg_sampling,
         'neg_km': args.neg_km, 'neg_k': args.neg_k, 'neg_lam': args.neg_lam,
         'neg_seed': args.neg_seed,
+        'match_radius_km': args.match_radius_km,
+        'match_exclude_m': args.match_exclude_m,
+        'match_elev_bin': args.match_elev_bin,
+        'match_slope_bin': args.match_slope_bin,
+        'match_far_frac': args.match_far_frac,
+        'match_diag': match_diag,
     }
     RESULT_DIR.mkdir(parents=True, exist_ok=True)
     out = RESULT_DIR / f'baseline_xgb{tag}.json'

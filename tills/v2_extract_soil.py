@@ -210,12 +210,28 @@ try:
     cov = np.where(tot_u > 0, mp_u / np.maximum(tot_u, 1.0), np.nan)
 
     df = pd.DataFrame({'unit_id': uid})
+    # 5 个主类(与历史列名一致, 保证可对照)
     for name, col in MAIN_COLS:
         df[col] = frac[:, SOIL_CLASSES.index(name)]
+    # 2026-09 重提: 追加其余 6 类, 输出全 11 类 + 主导类, 供消融挑选
+    for name in SOIL_CLASSES:
+        col = 'soil_%s_frac' % CN2EN[name]
+        if col not in df.columns:
+            df[col] = frac[:, SOIL_CLASSES.index(name)]
+    cls_share = cls_u.sum(axis=0) / max(tot_u.sum(), 1)
+    dom = np.where(np.isnan(frac).any(1), -1, frac.argmax(1))
+    df['soil_dom'] = [SOIL_CLASSES[i] if i >= 0 else '' for i in dom]
     df['soil_cov'] = cov
-    assert list(df.columns) == ['unit_id', 'soil_purple_frac', 'soil_limestone_frac',
-                               'soil_paddy_frac', 'soil_yellow_frac',
-                               'soil_yellowbrown_frac', 'soil_cov'], list(df.columns)
+    assert list(df.columns)[:7] == ['unit_id', 'soil_purple_frac', 'soil_limestone_frac',
+                                    'soil_paddy_frac', 'soil_yellow_frac',
+                                    'soil_yellowbrown_frac', 'soil_brown_frac'], list(df.columns)
+    log('\n[输出列] 全 11 类占比 + soil_dom + soil_cov, 列内走廊占比(按像元):')
+    for name in SOIL_CLASSES:
+        col = 'soil_%s_frac' % CN2EN[name]
+        nz = int((df[col].fillna(0) > 0).sum())
+        log('  %-16s 走廊占比 %6.3f%% | 非零单元 %5d | 单元均值 %.4f'
+            % (col, cls_share[SOIL_CLASSES.index(name)] * 100, nz,
+               float(df[col].fillna(0).mean())))
 
     # ================= 5) 走廊构成(全部 11 类) =================
     cls_total = cls_u.sum(axis=0)
@@ -302,7 +318,9 @@ try:
     log(f'  3) unit_id = 1..25939 连续: {seq_ok} | 与 shp 行序一致: {shp_ok} -> '
         f'{"通过" if (seq_ok and shp_ok) else "失败"}')
     assert seq_ok and shp_ok, 'unit_id 顺序/连续性自证失败'
-    FEATCOLS = [c for c in df.columns if c != 'unit_id']
+    FEATCOLS = [c for c in df.columns if c != 'unit_id'
+                and pd.api.types.is_numeric_dtype(df[c])]
+    DOMCOL = [c for c in df.columns if c == 'soil_dom']
     nan_s = chk[FEATCOLS].isna().sum()
     log(f'  4) NaN 统计 (共 {int(nan_s.sum())} 个, 占 '
         f'{nan_s.sum()/(len(chk)*len(FEATCOLS))*100:.4f}%):')
@@ -313,6 +331,9 @@ try:
     assert np.nanmax(np.abs(frac.sum(axis=1) - cov)) < 1e-9
     log(f'  6) 占比越界(<0 或 >1)单元数: '
         f'{int(((chk[FEATCOLS] < -1e-12) | (chk[FEATCOLS] > 1 + 1e-12)).sum().sum())} -> 通过')
+    if DOMCOL:
+        log(f'  6b) 主导土类 soil_dom 取值分布: '
+            f'{chk["soil_dom"].replace("", "(空)").value_counts().to_dict()}')
 
     # ================= 8) 6 列关键统计 =================
     log('\n' + '=' * 78)

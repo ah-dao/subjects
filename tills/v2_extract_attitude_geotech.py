@@ -5,11 +5,23 @@
   data/slope_units/slope_units_final.shp      25,939 单元(EPSG:4326, unit_id=1..25939)
   data/geology/attitude/                      倾角idw, 倾向sinidw, 倾向cosidw,
                                               倾角, 倾向, 坡向, slopetype (LAEA 球体 111.6m)
-  data/geotech/cmax.tif  fanmax.tif           c(kPa) / φ(°) EPSG:32648, 30m
+  data/geotech/cmax.tif  fanmax.tif           源字段 c_max / fan_max, EPSG:32648, 30m
+                                              ⚠ fan_max 语义待确认: 据数据来源为"剪切力"(非内摩擦角);
+                                                栅格无单位元数据; 且与 c_max 严格仿射 => 仅 1 个自由度
 输出:
-  features/v2/groups/attitude.csv   (unit_id + 11 列)
+  features/v2/groups/attitude.csv   (unit_id + 8 列)
   features/v2/groups/geotech.csv    (unit_id + 3 列)
   results/v2_attitude_geotech_report.txt
+
+注: 2026-09 评审删 dip_mean(单元平均倾角与地形坡度冗余、区分度低)与
+    stype_oblique/anti_slope_frac(与 flat+dip_slope 共线可推导);
+    SlopeType 编码: 0=平地 1=顺向坡(夹角<=30°) 2=斜交(30-150°) 3=逆向坡(>=150°)
+
+⚠ 2026-10 状态更新: **力学参数(cohesion_mean / friction_mean)已整体弃用**, 不再作为模型输入。
+   理由: 两者 r=0.9999998(只有 1 个自由度)、c 有 90% 可由地形复现(OOF R²=0.896)、
+   `fan` 的单位与生成公式未确认。见 docs/地质机理与消融_v2.md §6.2。
+   本脚本与 features/v2/groups/geotech.csv 仅作溯源保留; 产状(SlopeType)继续作为解释图层使用,
+   出图见 layers/geology_slopetype.tif。
 """
 import io
 import os
@@ -79,18 +91,15 @@ def zonal_arr(a, gdf, transform):
 
 
 # ---------------- 1) 产状: idw 栅格(100% 覆盖) ----------------
-n1, s1 = zonal_mean(ATT + r'\倾角idw', gl)
 n2, s2 = zonal_mean(ATT + r'\倾向sinidw', gl)
 n3, s3 = zonal_mean(ATT + r'\倾向cosidw', gl)
 att = pd.DataFrame({'unit_id': uid})
-att['dip_mean'] = np.where(n1 > 0, s1 / np.maximum(n1, 1), np.nan)
 sinm = s2 / np.maximum(n2, 1)
 cosm = s3 / np.maximum(n3, 1)
 att['dipdir_sin_mean'] = sinm
 att['dipdir_cos_mean'] = cosm
 att['dipdir_consistency'] = np.hypot(sinm, cosm)
-print(f'倾角均值中位 {np.nanmedian(att.dip_mean):.1f}° | 方向一致性中位 '
-      f'{np.nanmedian(att.dipdir_consistency):.3f}', file=buf)
+print(f'方向一致性中位 {np.nanmedian(att.dipdir_consistency):.3f}', file=buf)
 
 # ---------------- 2) 产状: 逐像元夹角/视倾角(对齐网格) ----------------
 with rasterio.open(ATT + r'\倾向') as s:
@@ -112,24 +121,21 @@ for nm, arr in [('rta_mean', rta), ('apparent_dip_mean', appdip)]:
     att[nm] = np.where(n > 0, sm / np.maximum(n, 1), np.nan)
     print(f'  {nm}: 有值单元 {int((n > 0).sum())} | 均值 {np.nanmean(att[nm]):.2f}', file=buf)
 
-# ---------------- 3) 产状: 坡体结构占比 + 覆盖率 ----------------
+# ---------------- 3) 产状: 坡体结构占比(SlopeType 0/1) + 覆盖率 ----------------
 n_tot, _ = zonal_mean(ATT + r'\倾角', gl)
-frac = {}
-for k, nm in [(0, 'flat'), (1, 'dip_slope'), (2, 'oblique'), (3, 'anti_slope')]:
-    with rasterio.open(ATT + r'\slopetype') as s:
-        st = s.read(1).astype('float64')
-        trs = s.transform
-        nds = s.nodata
+with rasterio.open(ATT + r'\slopetype') as s:
+    st = s.read(1).astype('float64')
+    trs = s.transform
+    nds = s.nodata
+for k, nm in [(0, 'flat'), (1, 'dip_slope')]:
     sel = np.where((st == k) & (st != nds), 1.0, np.nan)
     n, sm = zonal_arr(sel, gl, trs)
-    frac[nm] = np.where(n_tot > 0, n / np.maximum(n_tot, 1), np.nan)
-    att[f'stype_{nm}_frac'] = frac[nm]
+    att[f'stype_{nm}_frac'] = np.where(n_tot > 0, n / np.maximum(n_tot, 1), np.nan)
 att['att_cov'] = np.clip(n_tot / np.maximum(
     np.array([g.area for g in gl]) / (111.619667 ** 2), 1.0), 0, 1)
 att.to_csv(OUT + r'\attitude.csv', index=False, encoding='utf-8-sig')
-print(f'产状: 顺坡 {np.nanmean(att.stype_dip_slope_frac)*100:.1f}% | 斜交 '
-      f'{np.nanmean(att.stype_oblique_frac)*100:.1f}% | 逆坡 '
-      f'{np.nanmean(att.stype_anti_slope_frac)*100:.1f}% | 覆盖均值 {np.nanmean(att.att_cov):.3f}', file=buf)
+print(f'产状: 平地 {np.nanmean(att.stype_flat_frac)*100:.1f}% | 顺向坡 '
+      f'{np.nanmean(att.stype_dip_slope_frac)*100:.1f}% | 覆盖均值 {np.nanmean(att.att_cov):.3f}', file=buf)
 
 # ---------------- 4) 力学参数(30m, 分块) ----------------
 cnt = {'c': np.zeros(N + 1, dtype='int64'), 'f': np.zeros(N + 1, dtype='int64')}

@@ -57,6 +57,10 @@ WATER_NETWORK_FEATURES_CSV = FEATURES_DIR / 'water_network_features.csv'   # 水
 LANDUSE_MATRIX_CSV = FEATURES_DIR / 'landuse_unit_matrix.csv'   # CLCD 年度土地利用矩阵（extract_landuse_features.py）
 MONTHLY_WATER_CSV = FEATURES_DIR / 'monthly_water_levels.csv'           # extract_water_features 副产物
 FEATURES_CSV = FEATURES_DIR / 'v2' / 'features_v2_train.csv'   # 默认特征表 = v2 主线（baseline_xgb 未显式传 --features-csv 时用）
+# 38 维主线（34 维 + 地质精选 4 维，2026-10 评审通过，见 docs/地质机理与消融_v2.md）：
+# 默认 FEATURES_CSV 仍指向 34 维，以保持历史消融结果可比；新实验/出图请显式引用下面两个表。
+FEATURES_CSV_38 = FEATURES_DIR / 'v2' / 'features_v2_train_38.csv'      # 训练 25,509 x 38
+FEATURES_CSV_FULL_38 = FEATURES_DIR / 'v2' / 'features_v2_38.csv'       # 全量 25,939 x 38（出图）
 EVENT_WINDOW_FEATURES_CSV = FEATURES_DIR / 'v2' / 'features_v2_train.csv'   # 主线 34 维（v2 口径，训练 25,509）
 EVENT_WINDOW_FEATURES_FULL_CSV = FEATURES_DIR / 'v2' / 'features_v2.csv'    # 全量 25,939（出图）
 # 历史对照：event_window_features_k2_v30_train.csv（30 维，0.8189）保留备用
@@ -158,7 +162,15 @@ EVENT_WINDOW_FEATURES = (tuple(MAIN_STATIC_FEATURES) + (
 ) + tuple(ANTECEDENT_FEATURES) + tuple(LANDUSE_FEATURES)
     + tuple(LANDUSE_DELTA_FEATURES) + tuple(ROAD_FEATURES)
     + tuple(WETDRY_FEATURES))                                    # 34 维
-INPUT_DIM = len(EVENT_WINDOW_FEATURES)     # 34：GNN 输入维度（当前主线，XGB AUC 0.8233）
+
+# --- 地质精选 4 维（2026-10 评审通过并入主线；来源 features/v2/groups/factors_selected.csv） ---
+# 筛选过程: 第5轮（v2_ablation_r5_select）从 43 个候选列中保留这 4 列（Plan A）；
+# 第10轮（v2_ablation_r10_geology）用整块行置换零分布复核，并同时消融岩性硬度 one-hot /
+# 坡面结构 SlopeType one-hot / 力学参数均值；机理层证据见 results/v2_mechanism_analysis.txt。
+GEOLOGY_SELECTED_FEATURES = ('soil_purple_frac', 'litho_T2_frac',
+                             'litho_J2_frac', 'litho_T1_frac')
+MAIN_FEATURES_38 = tuple(EVENT_WINDOW_FEATURES) + GEOLOGY_SELECTED_FEATURES   # 38 维主线
+INPUT_DIM = len(EVENT_WINDOW_FEATURES)     # 34：GNN 输入维度（历史口径；38 维主线用 MAIN_FEATURES_38）
 
 # --- 旧事件前水位骤降特征（已删：XGB 下被淹没特征吸收；后被 WETDRY 的逐日干湿特征取代） ---
 # WATER_TRIGGER_FEATURES = ['ant_inund_1m', 'ant_inund_3m', 'ant_max_depth_3m', 'ant_drawdown_3m']

@@ -2,9 +2,17 @@ __pycache__/
 _tmppip/
 
 # 数据与生成产物（体积较大，不提交到 git）
+#   data/          原始数据（21 GB，只读）
+#   features/      特征表；其中 features/v2/ablation/ 是消融中间件，可随时删（见该目录 README）
+#   predictions/   出图产物（shp/tif/csv/png）
+#   layers/        地质图层（由 tills/v2_build_geology_layers.py 生成）
+#   results/       结论报告 + results/runs/ 逐次运行 JSON
+# 说明：这些目录内的 README.md 是目录导航/生成物，随目录一起不入库；
+#       项目级导航在 docs/ 下（docs/项目结构.md、docs/README.md）。
 data/
 features/
 predictions/
+layers/
 results/
 
 # 压缩包
@@ -13,3 +21,5 @@ results/
 # 旧版本遗留文件（已归档，不入库）
 archive/
 
+# 入库范围提示（不需要写规则）：
+#   src/ tills/ tools/ docs/ deliverables/ + 根目录脚本 = 代码、文档、交付表

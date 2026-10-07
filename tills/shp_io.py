@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
-"""轻量 shapefile 读取(不依赖 GDAL/pyogrio/fiona)。
+"""轻量 shapefile 读写工具(不依赖 GDAL/pyogrio/fiona)。
 
-仅支持面要素(shp type 5/15/25): 返回 shapely 几何 + DBF 属性 + CRS。
-用途: 当 pyogrio/fiona 因 DLL 冲突不可用时的替代读取路径。
+读取: 仅支持面要素(shp type 5/15/25)/线要素(type 3/13/23), 返回 shapely 几何 + DBF 属性 + CRS。
+写入: write_cpg() 为 pyshp 写出的 shp 补 .cpg(中文属性防乱码)。
+用途: 当 pyogrio/fiona 因 DLL 冲突不可用时的替代读写路径。
 """
 import os
 import struct
@@ -17,8 +18,20 @@ def _signed_area(ring):
     return 0.5 * float(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1)))
 
 
+def write_cpg(shp_path, encoding='UTF-8'):
+    """为写出的 shapefile 补一个 .cpg 声明文件。
+
+    pyshp(2.3.1) 只按 encoding 写 DBF 字节，**不生成 .cpg**；缺 .cpg 时 QGIS/ArcGIS
+    只能猜编码，中文字段会乱码（本项目的 read_dbf 也会回退到 cp936）。
+    所有自己写出的 shp 都应调用本函数。
+    """
+    p = os.path.splitext(shp_path)[0] + '.cpg'
+    with open(p, 'w', encoding='ascii') as f:
+        f.write(encoding)
+    return p
+
+
 def read_dbf(dbf_path, encoding=None):
-    """解析 DBF -> (字段名列表, list[dict])。"""
     if encoding is None:
         cpg = os.path.splitext(dbf_path)[0] + '.cpg'
         encoding = 'cp936'

@@ -143,6 +143,91 @@ def sample_proximity_negatives(centroids_utm, y, pos_idx, d_km, k, seed, candida
     return picked_neg, stats
 
 
+def matched_negatives(centroids_utm, y, pos_idx, strata_keys, d_km=4.0, exclude_m=150.0,
+                      k=5, far_frac=0.0, seed=42, candidate_idx=None):
+    """病例-对照匹配负采样（方案 1，2026-10 评审确定）。
+
+    动机（本项目实测）：随机取邻近负样本时，正负样本在"地形位置"上严重不平衡——
+    高程 SMD −1.14、淹没 +0.70、干湿循环 +0.65；仅用高程/坡度/淹没做逻辑回归 AUC 就达
+    0.8357，导致岩性/土壤/年代/产状等弱因素没有判别空间。按混杂变量**分层配平**后，
+    混杂 AUC 降到 0.5577（见 results/neg_sampling_diagnostic.txt）。
+
+    规则：
+      ① 候选池：candidate_idx 内、到最近正样本距离 ≤ d_km、且 ≥ exclude_m 的负样本
+         （排除正样本 footprint：滑坡侧翼受扰动、编目边界有误差）；
+      ② 分层：按调用方给好的 strata_keys（如 高程20m箱 × 坡度10°箱）分组；
+      ③ 每个正样本在**同层内**取至多 k 个负样本，层内打乱后顺序取用（无放回）；
+      ④ far_frac > 0 时，另从候选负样本中**全域随机**补 far_frac × k × n_pos 个
+         （缓解"缓冲区外无对照"的支撑域缺口；出图/外推时尤其需要）。
+
+    candidate_idx: 传该折索引 → 训练负样本只从训练折抽，无跨折选择泄漏。
+    返回 (picked_neg, stats)：picked_neg 升序去重索引；stats 含采样统计。
+    """
+    from scipy.spatial import cKDTree
+    rng = np.random.RandomState(seed)
+    n = len(y)
+    if candidate_idx is None:
+        candidate_idx = np.arange(n)
+    candidate_idx = np.asarray(candidate_idx, dtype=np.int64)
+    cand_set = np.zeros(n, dtype=bool)
+    cand_set[candidate_idx] = True
+    pos_in = np.asarray([p for p in pos_idx if cand_set[p]], dtype=np.int64)
+    if len(pos_in) == 0:
+        return np.array([], dtype=np.int64), {'candidate_neg': 0, 'core_pool': 0,
+                                              'matched': 0, 'matched_pos': 0,
+                                              'dropped_pos': 0, 'far': 0, 'k_used': k}
+    tree = cKDTree(centroids_utm[pos_in])
+    dmin, _ = tree.query(centroids_utm)
+    core = cand_set & (y == 0) & (dmin <= d_km * 1000.0) & (dmin >= exclude_m)
+
+    keys = np.asarray(strata_keys)
+    by = {}
+    for j in np.flatnonzero(core):
+        by.setdefault(keys[j], []).append(j)
+    for v in by.values():
+        rng.shuffle(v)
+    ptr = {kk: 0 for kk in by}
+    used = np.zeros(n, dtype=bool)
+    matched_pos, dropped, per_pos = 0, 0, []
+    for p in pos_in:
+        kk = keys[p]
+        lst = by.get(kk)
+        got = 0
+        if lst is not None:
+            while ptr[kk] < len(lst) and got < k:
+                j = lst[ptr[kk]]
+                ptr[kk] += 1
+                if not used[j]:
+                    used[j] = True
+                    got += 1
+        per_pos.append(got)
+        if got:
+            matched_pos += 1
+        else:
+            dropped += 1
+    matched = np.flatnonzero(used)
+
+    far = np.array([], dtype=np.int64)
+    if far_frac and far_frac > 0:
+        n_far = int(round(far_frac * k * len(pos_in)))
+        avail = candidate_idx[(y[candidate_idx] == 0) & ~used[candidate_idx]]
+        if n_far > 0 and len(avail) > 0:
+            far = np.sort(rng.choice(avail, size=min(n_far, len(avail)), replace=False))
+
+    picked = np.union1d(matched, far).astype(np.int64)
+    stats = {
+        'candidate_neg': int((candidate_idx[y[candidate_idx] == 0]).size),
+        'core_pool': int(core.sum()),
+        'matched': int(matched.size),
+        'matched_pos': int(matched_pos),
+        'dropped_pos': int(dropped),
+        'far': int(far.size),
+        'k_used': int(k),
+        'per_pos_mean': float(np.mean(per_pos)) if per_pos else 0.0,
+    }
+    return picked, stats
+
+
 def load_sample_weights(features_csv, count_csv, scheme='none'):
     """按研究期滑坡次数构造逐样本权重（与 features.csv 行序对齐）。
 
