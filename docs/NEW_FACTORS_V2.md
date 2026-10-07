@@ -11,7 +11,9 @@
 |---|---|---|---|
 | **岩性** | `features/v2/groups/lithology.csv` | 12 列 | 碎屑岩 0.748、碳酸盐岩 0.220、页岩煤系 0.029；组级合并类：`J2J3` 0.477、`T3` 0.137、`T2b` 0.102、`T1-2j` 0.076、`T3xj` 0.061、`J1` 0.059、`T1d` 0.040；覆盖 0.996 |
 | **岩层产状** | `features/v2/groups/attitude.csv` | 11 列 | 倾角均值 26.4°、方向一致性 0.676、岩层-坡向夹角 83.5°、视倾角 2.67°、顺坡 20.4%/斜交 63.3%/逆坡 14.6%、覆盖 0.942 |
-| **力学参数** | `features/v2/groups/geotech.csv` | 3 列 | c 均值 9.58、φ 均值 20.32、有值单元 25,927/25,939（c 与 φ 相关 1.000，**只留 φ**） |
+| **力学参数** | `features/v2/groups/geotech.csv` | 3 列 | c 均值 9.58、剪切力均值 20.32、有值单元 25,927/25,939（两者相关 1.000，**只留 1 列**） |
+
+> ⚠ **更正（2026-10）**：`fan_max` 此前被标注为"内摩擦角 φ(°)"，但栅格元数据无单位与语义（`.tif.xml` 的 `valUnit/UOM` 为空）；据数据来源方说明 **`fan` = 剪切力**，单位待原始点表确认。且 `fan_max` 与 `c_max` 逐像元严格仿射（r = 1.000000），**只有 1 个自由度**。
 | **土壤** | `features/v2/groups/soil.csv` | 6 列 | 紫色土 0.578、石灰土 0.149、水稻土 0.132、黄壤 0.134、黄棕壤 0.005；覆盖 1.000（0 NaN） |
 
 **口径说明（重要）**
@@ -61,7 +63,13 @@
 
 ### 3.3 最终确认：推荐集（四类各留一些）
 
-**推荐集（9 列）** = `litho_clastic_frac`、`litho_carbonate_frac`、`litho_shale_frac`、`litho_T2b_frac`、`litho_J2J3_frac`、`soil_purple_frac`、`soil_paddy_frac`、`friction_mean`、`dip_mean`
+> ⚠ **后续状态（2026-10）**：本节这份 9 列"推荐集"是**当时口径**的结果，已被后续两轮取代：
+> ①第 5 轮筛选（`docs/FEATURE_SELECTION_V2.md`）把它压缩为 **4 列**（`soil_purple_frac`、`litho_T2_frac`、
+> `litho_J2_frac`、`litho_T1_frac`）；②其中的 **`friction_mean` 已整体弃用**（与 `cohesion_mean` 完全共线、
+> c 的 90% 可由地形复现、单位与生成公式不明，见 `docs/地质机理与消融_v2.md` §6.2）；
+> ③`dip_mean` 等倾角类均值已不在主线（改用 SlopeType 与手工数字化岩性）。**请勿再引用本节作为现行推荐集。**
+
+**推荐集（9 列，历史口径）** = `litho_clastic_frac`、`litho_carbonate_frac`、`litho_shale_frac`、`litho_T2b_frac`、`litho_J2J3_frac`、`soil_purple_frac`、`soil_paddy_frac`、`friction_mean`、`dip_mean`
 
 | 指标 | 推荐集 | 基线 | 同列数（9 列）噪声对照 |
 |---|---|---|---|
@@ -114,7 +122,7 @@ tills/v2_ablation_new_factors.py           # 第一轮：分组级 + 6 噪声对
 tills/v2_ablation_new_factors_r2.py        # 第二轮：定向筛选
 tills/v2_ablation_recommended.py           # 最终推荐集确认
 ```
-产物：`features/v2/groups/{lithology,attitude,geotech,soil}.csv`；`features/v2/ablation/{nf_*,r2_*,rec_*}.csv`；
+产物：`features/v2/groups/{lithology,attitude,geotech,soil}.csv`；`features/v2/ablation/{nf_*,r2_*,rec_*}.csv`（⚠ 该目录为消融中间件，2026-10 已清理，重跑脚本即重建，见 `archive/v2_process/README.md`）；
 报告：`results/v2_ablation_new_factors.txt`、`..._r2.txt`、`v2_ablation_recommended_set.txt`、`v2_ablation_*.json`、
 `results/v2_lithology_report.txt`、`v2_attitude_geotech_report.txt`、`v2_soil_report.txt`。
 
