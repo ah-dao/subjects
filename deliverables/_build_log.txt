@@ -1,0 +1,59 @@
+基础表 features_v2_train.csv: 25509 行 x 36 列 (34 特征) | NaN 0
+
+已写出:
+  features_v2_train_42d.csv  (25509, 44) (unit_id + 42 特征 + label)
+  features_v2_train_48d_onehot.csv  (25509, 50) (unit_id + 48 特征 + label)
+  列说明.csv  44 行
+
+列清单(42 维):
+   1 elevation_mean         单元平均海拔
+   2 slope_mean             单元平均坡度
+   3 aspect_sin             坡向正弦分量
+   4 aspect_cos             坡向余弦分量
+   5 TRI_mean               地形起伏指数均值
+   6 area                   单元面积
+   7 shape_index            形状指数
+   8 inundation_fraction    被淹时间占比
+   9 river_dist_m           到最近河流距离
+  10 mainstream_dist_m      到长江干流距离
+  11 drainage_density       水系密度(2 km 缓冲)
+  12 k2_ndvi_mean           事件前2年平均绿度
+  13 k2_ndvi_change         事件前2年绿度变化
+  14 k2_maxdaily_max        事件前2年单日最大降雨
+  15 k2_max30d_max          事件前2年最大30日累计降雨
+  16 k2_heavydays_sum       事件前2年暴雨日数
+  17 k2_cumulative_mean     事件前2年年均降雨
+  18 ant_1m                 事件前1个月累计降雨
+  19 ant_3m                 事件前3个月累计降雨
+  20 ant_6m                 事件前6个月累计降雨
+  21 wet_season_frac        前一年汛期雨量占比
+  22 cropland_frac          耕地占比
+  23 builtup_frac           房屋/硬化用地占比
+  24 lu_builtup_delta       前2年建设用地占比变化
+  25 lu_cropland_delta      前2年耕地占比变化
+  26 lu_change_freq         前2年土地利用变化次数
+  27 road_dist_m            到最近道路距离
+  28 road_density           道路密度(2 km 缓冲)
+  29 road_major_dist_m      到高等级道路距离
+  30 road_local_dist_m      到乡村小路距离
+  31 max_drawdown_rate      全窗口单月最大水位降幅
+  32 wet_dry_cycles         干湿交替总次数
+  33 ant_inund_days_3m      事件前3个月被淹天数
+  34 ant_drawdown_3m        事件前3个月水位降幅
+  35 soil_purple_frac       紫色土占比
+  36 litho_T2_frac          中三叠统占比
+  37 litho_J2_frac          中侏罗统占比
+  38 litho_T1_frac          下三叠统占比
+  39 cohesion_mean          黏聚力 c 单元均值
+  40 friction_mean          剪切力（源数据字段 fan_max）
+  41 litho_hardness_dom     岩性硬度主导类
+  42 slopetype_dom          坡体结构主导类
+
+填补与缺失:
+  连续特征按列均值填补: litho_T2_frac(89), litho_J2_frac(89), litho_T1_frac(89), cohesion_mean(12), friction_mean(12)
+  岩性硬度无数据(编码 0): 89 个单元
+  坡体结构无数据(编码 −1): 613 个单元
+  填后 42 维 NaN 总数: 0
+  标签分布: {0: np.int64(24848), 1: np.int64(661)}
+  主导类分布: 硬度 {'无数据': 89, '坚硬': 16555, '较硬': 4628, '较软': 3580, '软岩': 657}
+              产状 {'无数据': 613, '平地': 12, '顺坡(顺向坡)': 4698, '斜交': 17366, '逆坡(斜向坡)': 2820}

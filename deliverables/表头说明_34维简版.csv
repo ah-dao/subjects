@@ -1,0 +1,37 @@
+﻿特征,时间窗口,中文名称
+unit_id,—,"斜坡单元ID（主键，1…25,939）"
+elevation_mean,静态,单元平均海拔（m）
+slope_mean,静态,单元平均坡度（°）
+aspect_sin,静态,坡向正弦分量（避免 0°/360° 环绕）
+aspect_cos,静态,坡向余弦分量（避免 0°/360° 环绕）
+TRI_mean,静态,地形起伏指数均值（地表粗糙度）
+area,静态,单元面积（m²）
+shape_index,静态,形状指数（周长 ÷ 等面积圆周长）
+inundation_fraction,03-21年累计,2003–2021 年被淹时间占比（0–1，逐像元判淹后面积加权）
+river_dist_m,静态,到最近河流距离（m）
+mainstream_dist_m,静态,到长江干流距离（m）
+drainage_density,静态,2 km 缓冲区内水系密度（线长 ÷ 缓冲面积）
+k2_ndvi_mean,滑坡前2年,事件前 2 年平均绿度（NDVI）
+k2_ndvi_change,滑坡前2年变化,事件前 2 年绿度 − 长期均值（NDVI 变化）
+k2_maxdaily_max,滑坡前2年,事件前 2 年单日最大降雨（mm）
+k2_max30d_max,滑坡前2年,事件前 2 年最大 30 日累计降雨（mm）
+k2_heavydays_sum,滑坡前2年,事件前 2 年暴雨日数（日雨量 >50 mm）
+k2_cumulative_mean,滑坡前2年均值,事件前 2 年年均累计降雨（mm）
+ant_1m,滑坡前1个月,事件前 1 个月累计降雨（mm）
+ant_3m,滑坡前3个月,事件前 3 个月累计降雨（mm）
+ant_6m,滑坡前6个月,事件前 6 个月累计降雨（mm）
+wet_season_frac,滑坡前1年,前一年汛期（5–9 月）雨量占全年比例
+cropland_frac,滑坡前1年,耕地占比（事件前 1 年，CLCD）
+builtup_frac,滑坡前1年,房屋/硬化用地占比（事件前 1 年，CLCD）
+lu_builtup_delta,滑坡前2年,事件前 2 年建设用地占比变化
+lu_cropland_delta,滑坡前2年变化,事件前 2 年耕地占比变化
+lu_change_freq,滑坡前2年变化,事件前 2 年土地利用变化次数（相邻年变化 >2% 计 1 次）
+road_dist_m,静态,到最近道路距离（m）
+road_density,静态,2 km 缓冲区内道路密度（线长 ÷ 缓冲面积）
+road_major_dist_m,静态,到高等级道路距离（m）
+road_local_dist_m,静态,到乡村小路距离（m）
+max_drawdown_rate,03-21年最大值,全窗口单月最大库水位降幅（m/月）
+wet_dry_cycles,03-21年累计,2003–2021 年干湿交替总次数（逐像元统计后面积加权）
+ant_inund_days_3m,滑坡前3个月,事件前 3 个月被淹天数（面积加权）
+ant_drawdown_3m,滑坡前3个月,事件前 3 个月库水位降幅（m）
+label,—,滑坡标签（1 = 研究期 2003–2021 年内发生过滑坡）
