@@ -84,8 +84,9 @@ def ge(v, floor):
     return ver_key(v) >= ver_key(floor)
 
 
-def pick_wheel(pkg):
-    """挑最新**稳定**且满足最低版本的 wheel（版本号必须纯数字点，排除 dev/rc/a/b）。"""
+def pick_wheel(pkg, want=''):
+    """挑最新**稳定**且满足最低版本的 wheel（版本号必须纯数字点，排除 dev/rc/a/b）。
+    want 非空时只取该精确版本（用于指定 tabpfn==2.1.4 这类降级场景）。"""
     canon = CANON.get(pkg, pkg)
     floor = MIN_VER.get(canon, '0')
     last = None
@@ -105,7 +106,10 @@ def pick_wheel(pkg):
             name, ver, py, abi, plat = p
             if not re.fullmatch(r'\d+(\.\d+)*', ver):      # 排除 0.9.0.dev0 / rc / a / b
                 continue
-            if not ge(ver, floor):
+            if want:
+                if ver != want:
+                    continue
+            elif not ge(ver, floor):
                 continue
             tag = '%s-%s-%s' % (py, abi, plat)
             rank = PY_TAGS.index(tag) if tag in PY_TAGS else -1
@@ -116,7 +120,8 @@ def pick_wheel(pkg):
             cands.sort()
             _, _, l, base = cands[-1]
             return (l if l.startswith('http') else m + canon + '/' + l), base, m
-    raise RuntimeError('未找到满足条件的 wheel（%s，最低 %s，%s）' % (canon, floor, last))
+    raise RuntimeError('未找到满足条件的 wheel（%s%s，%s）'
+                       % (canon, ('==' + want) if want else '，最低 ' + floor, last))
 
 
 def download(url, base):
@@ -143,16 +148,18 @@ def main():
     os.makedirs(WHEEL_DIR, exist_ok=True)
     os.makedirs(TARGET, exist_ok=True)
     files = []
-    for pkg in pkgs:
+    for spec in pkgs:
+        # 支持 "包名" 或 "包名==版本"（如 tabpfn==2.1.4 —— torch 2.4 的镜像要用这一代）
+        pkg, want = (spec.split('==', 1) + [''])[:2] if '==' in spec else (spec, '')
         try:
-            url, base, mirror = pick_wheel(pkg)
+            url, base, mirror = pick_wheel(pkg, want)
         except Exception as e:
-            print('  [跳过] %-20s %s' % (pkg, e))
+            print('  [跳过] %-20s %s' % (spec, e))
             continue
         try:
             files.append(download(url, base))
         except Exception as e:
-            print('  [失败] %-20s %s' % (pkg, type(e).__name__))
+            print('  [失败] %-20s %s' % (spec, type(e).__name__))
     if not files:
         print('没有可安装的 wheel')
         return

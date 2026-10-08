@@ -95,6 +95,13 @@ def main():
 
     import torch
     device = args.device or ('cuda' if torch.cuda.is_available() else 'cpu')
+    try:
+        import tabpfn as _tp
+        tpv = getattr(_tp, '__version__', '?')
+    except Exception:
+        tpv = '?'
+    print(f'[版本] tabpfn {tpv} | torch {torch.__version__} | cuda {torch.cuda.is_available()}'
+          f'  ← 比较实验必须固定 tabpfn 版本（2.x 与 8.x 的默认集成数不同，数值会有小差异）')
     ckpt = args.model_path or str(ROOT / 'models' / 'tabpfn' /
                                   'tabpfn-v2-classifier-finetuned-zk73skhh.ckpt')
     if not os.path.exists(ckpt) and args.model_path is None:
@@ -218,6 +225,20 @@ def main():
             cpu_large = (device == 'cpu' and len(keep) > 1000)
             kwargs['ignore_pretraining_limits'] = bool(args.ignore_limits or cpu_large
                                                        or len(keep) > 10000)
+            # 兼容两代 API：tabpfn 2.x 要求 torch>=2.1，6.x/8.x 要求 torch>=2.5。
+            # 只传构造器签名里存在的参数，避免在小版本上 TypeError。
+            try:
+                import inspect
+                _sig = set(inspect.signature(TabPFNClassifier.__init__).parameters)
+                dropped = [k for k in list(kwargs) if k not in _sig]
+                for k in dropped:
+                    kwargs.pop(k)
+                if dropped and not globals().get('_warned_dropped'):
+                    print('  [兼容] 当前 tabpfn 版本不支持参数 %s，已忽略（2.x 与 8.x 的差异）'
+                          % dropped)
+                    globals()['_warned_dropped'] = True
+            except Exception:
+                pass
             clf = TabPFNClassifier(**kwargs)
             clf.fit(X[keep], y[keep])
             prob = clf.predict_proba(X[va_idx])[:, 1]
@@ -242,6 +263,7 @@ def main():
 
     result = {
         'model': 'TabPFN-v2', 'model_path': ckpt, 'device': device,
+        'tabpfn_version': tpv, 'torch_version': torch.__version__,
         'fold_method': args.method, 'folds': args.folds,
         'features_csv': str(csv_path), 'n_features': X.shape[1], 'used_features': used,
         'context_mode': args.context, 'max_train': args.max_train, 'seeds': args.seeds,

@@ -102,6 +102,30 @@ python tools/fetch_python_pack.py          # 抓 wheel 到 tools/wheels/ 并离�
 export PYTHONPATH=$PWD/.deps
 ```
 
+### 1.1 如果镜像的 PyTorch 只到 2.4（恒源云常见）
+
+TabPFN 的版本与 torch 下限：**2.x 系列要求 `torch>=2.1`；6.x/8.x 要求 `torch>=2.5`**。
+三条出路，**推荐第一条**：
+
+```bash
+# ① 降到 tabpfn 2.x（同属 TabPFN v2、用同一个 ckpt；本机已实测跑通）
+pip install "tabpfn==2.1.4"                                                    # 联网
+python tools/fetch_python_pack.py "tabpfn==2.1.4" && export PYTHONPATH=$PWD/.deps   # 离线
+
+# ② 升级 torch（与镜像无关，只看驱动；先 nvidia-smi 确认驱动 >= 525）
+pip install "torch==2.5.1" --index-url https://download.pytorch.org/whl/cu124
+
+# ③ 换平台：AutoDL 有更新的 PyTorch 镜像（额度也一样）
+```
+
+⚠ **选定 tabpfn 版本后必须固定**：2.x 与 8.x 的默认集成数不同，AUC 约有 0.005 量级的小差异。
+`baseline_tabpfn.py` 已把 `tabpfn_version` / `torch_version` 写进 JSON，配对比较前请核对一致。
+
+| 卡型 | torch 轮子 |
+|---|---|
+| 30/40 系 | `cu121` / `cu124` 均可（驱动 ≥525） |
+| **50 系（Blackwell）** | **必须 `cu128`**，驱动 ≥570 |
+
 ## 2. 权重（已随包携带，无需外网）
 
 `models/tabpfn/tabpfn-v2-classifier-finetuned-zk73skhh.ckpt`（29 MB，来自 ModelScope 的
@@ -199,7 +223,6 @@ def main():
             add_path(zf, rel)
         for rel in CODE_FILES:
             add_path(zf, rel, optional=True)
-        add_path(zf, 'tools/wheels')
         for rel, _desc, opt in DATA:
             if rel.endswith('Terrain_MultiBand.tif') and not args.with_terrain:
                 continue
