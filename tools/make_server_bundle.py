@@ -84,20 +84,21 @@ export PYTHONPATH=$PWD/.deps            # 若用离线 wheel 安装，见下
 
 ## 1. 环境（两条路，任选）
 
-**A. 在线安装（推荐，服务器网络通常可用）**
+**A. 在线安装（服务器推荐；AutoDL/恒源云一般都有学术加速）**
 
 ```bash
-pip install torch --index-url https://download.pytorch.org/whl/cu128      # >=2.7
+pip install torch --index-url https://download.pytorch.org/whl/cu128      # >=2.5，cu128
 pip install xgboost scikit-learn pandas numpy scipy shapely pyproj rasterio pyshp
-pip install ./tools/wheels/tabpfn.whl    # 或 pip install tabpfn
-export HF_ENDPOINT=https://hf-mirror.com # 若还要自己拉权重；本包已带权重，可跳过
+pip install ./tools/wheels/tabpfn.whl      # 或直接 pip install tabpfn
 ```
 
-**B. 离线安装（服务器也不能联网时）**
+**B. 离线安装**
+
+⚠ 注意：本包内 `tools/wheels/` 的**编译型 wheel 是 Windows 版**（本机生成），**Linux 服务器装不上**。
+在服务器上重新抓一套 Linux wheel（脚本会按平台自动选标签）：
 
 ```bash
-mkdir -p .deps && cd .deps
-for w in ../tools/wheels/*.whl; do unzip -o -q "$w"; done && cd ..
+python tools/fetch_python_pack.py          # 抓 wheel 到 tools/wheels/ 并离线安装到 .deps/
 export PYTHONPATH=$PWD/.deps
 ```
 
@@ -105,62 +106,82 @@ export PYTHONPATH=$PWD/.deps
 
 `models/tabpfn/tabpfn-v2-classifier-finetuned-zk73skhh.ckpt`（29 MB，来自 ModelScope 的
 `Prior-Labs/TabPFN-v2-clf`；本机 huggingface.co / hf-mirror 均不可达，故走魔搭）。
-
-## 3. 冒烟（1 分钟，确认链路）
+`baseline_tabpfn.py` 默认就会用它；请务必带上：
 
 ```bash
-export HF_HUB_OFFLINE=1 TABPFN_ALLOW_CPU_LARGE_DATASET=1
-python baseline_tabpfn.py --smoke --method spatial_kmeans --context matched --n-estimators 2
+export HF_HUB_OFFLINE=1        # 禁止联网找权重，强制用本地 ckpt
+```
+
+## 3. 显存与上下文（重要）
+
+| 口径 | 上下文规模 | 显存建议 |
+|---|---|---|
+| `--context matched`（病例-对照 k=5） | 约 2.2~3.2k | **8 GB 够用**（推荐先跑这个） |
+| `--context soft --max-train 12000` | 约 12k（近区负样本全留） | **建议 ≥16 GB**；8 GB 请降到 `--max-train 6000` |
+
+CPU 实测参考（本机 16 线程、38 维）：上下文 1000 → 预测 400 行约 **32 s**；上下文 2000 → **89 s**。
+GPU 会快 1~2 个数量级，但**必须实测**：先用 `--seeds 1` 跑一格计时，再决定 `--seeds 10` 是否划算。
+
+## 4. 冒烟（1 分钟，确认链路）
+
+```bash
+export HF_HUB_OFFLINE=1
+python baseline_tabpfn.py --smoke --context matched --method spatial_kmeans --n-estimators 2
 python baseline_xgb.py --features-csv features/v2/features_v2_train_38.csv \\
     --method spatial_kmeans --seed 42 --neg-sampling matched --neg-k 5
 ```
 
-## 4. 入场实验（方案 §5.2 的 2×2：模型 × 人群）
+## 5. M3 入场实验（2×2：模型 × 人群）—— 建议分两阶段
+
+**阶段 1（先跑最小可判定的四格，估计 1~2 小时机时）**
 
 ```bash
-# ① soft 等效人群（远区按 λ=0.2 子采样，上下文上限 12k）
-python baseline_xgb.py   --features-csv features/v2/features_v2_train_38.csv \\
-    --method spatial_kmeans --neg-sampling soft --neg-lam 0.2 --neg-km 4.0
-python baseline_tabpfn.py --features-csv features/v2/features_v2_train_38.csv \\
-    --method spatial_kmeans --context soft --neg-lam 0.2 --max-train 12000 --seeds 10
-
-# ② matched 人群（病例-对照 k=5，TabPFN 甜区：上下文约 3.2k，不触上限）
-python baseline_xgb.py   --features-csv features/v2/features_v2_train_38.csv \\
-    --method spatial_kmeans --neg-sampling matched --neg-k 5
-python baseline_tabpfn.py --features-csv features/v2/features_v2_train_38.csv \\
-    --method spatial_kmeans --context matched --match-k 5 --seeds 10
-
-# ③ admin 分折复核（两套分折同号才算通过）
-#    把 --method spatial_kmeans 换成 --method admin 重跑上面四条
+for M in spatial_kmeans admin; do
+  # ① soft 等效人群
+  python baseline_xgb.py    --features-csv features/v2/features_v2_train_38.csv \\
+      --method $M --neg-sampling soft --neg-lam 0.2 --neg-km 4.0 --seed 42
+  python baseline_tabpfn.py --features-csv features/v2/features_v2_train_38.csv \\
+      --method $M --context soft --neg-lam 0.2 --max-train 12000 --seeds 3
+  # ② matched 人群（TabPFN 甜区）
+  python baseline_xgb.py    --features-csv features/v2/features_v2_train_38.csv \\
+      --method $M --neg-sampling matched --neg-k 5 --seed 42
+  python baseline_tabpfn.py --features-csv features/v2/features_v2_train_38.csv \\
+      --method $M --context matched --match-k 5 --seeds 3
+done
 ```
 
-**判定**（同折同种子配对）：
+**阶段 2（若阶段 1 显示方向为正或接近 MDE，再把重复次数提到 10 以压小零分布 SD）**
+把上面的 `--seeds 3` 改为 `--seeds 10`（TabPFN 侧；XGB 侧用 `--seeds` 不支持，改 `--seed` 逐次跑或直接复用阶段 1）。
+
+**后台运行 + 日志**（GPU 实例断连不掉任务）
+
+```bash
+tmux new -s m3            # 或 screen -S m3
+python -u baseline_tabpfn.py ... 2>&1 | tee logs/tabpfn_matched_spatial.log
+# Ctrl-B D 脱离；tmux attach -t m3 回来
+```
+
+## 6. 判定（同折同种子配对，自动对照 MDE）
 
 ```bash
 python tools/paired_compare.py \\
-  xgb_spatial=results/runs/r10/<xgb-soft-spatial>.json \\
-  tabpfn_spatial=results/runs/tabpfn/<tabpfn-soft-spatial>.json
+  xgb_matched_spatial=results/runs/r10/...json \\
+  tabpfn_matched_spatial=results/runs/tabpfn/baseline_tabpfn_mt5f0_38d_s3.json
 ```
 
-Δ 必须**超过该口径 MDE**（matched5-spatial 0.0081；soft02-spatial 0.0032）且配对显著。
+（`results/runs/` 下的确切文件名由脚本自动生成，含口径/维数/种子数标签；直接 `ls` 选即可。）
 
-## 5. M1（库水位-高程算子，先做 (a) 特征化路线）
+**门槛**：Δ 超过该口径 MDE（soft02-spatial **0.0032**、matched5-spatial **0.0081**）、配对显著、
+**spatial 与 admin 两套分折同号**，才算"取代 XGBoost"。
+
+## 7. 结果回传
 
 ```bash
-python tills/v2_extract_water_operator.py          # 生成 features/v2/groups/water_operator.csv
-python baseline_xgb.py --features-csv features/v2/features_v2_train_38.csv \\
-    --features <38 维 + 算子特征列> --method spatial_kmeans --neg-sampling soft --neg-lam 0.2
+tar czf runs_$(date +%m%d).tgz results/runs results/*.txt results/*.json docs
 ```
 
-（脚本由本机侧编写，随下一版包更新；M1 也可完全在本地 CPU 跑，不需要 GPU。）
-
-## 6. 结果回传
-
-```bash
-tar czf runs_$(date +%m%d).tgz results/runs results/*.txt
-```
-
-都很小（几 MB），直接拉回本地；**不要回传 GeoTIFF/权重**。
+都很小（几 MB），拉回本地后可直接用 `tools/paired_compare.py` 复核；
+**不要回传 GeoTIFF/权重**（本地可用脚本重建）。
 """
 
 
