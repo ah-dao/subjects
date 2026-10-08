@@ -36,19 +36,49 @@ def load_graph(npz_path):
     return data['edge_index'].astype(np.int64)
 
 
+def _read_polygons():
+    """回退用的轻量 shapefile 读取器（tills/shp_io.py，不依赖 GDAL/geopandas）。"""
+    import os
+    import sys
+    p = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'tills')
+    if p not in sys.path:
+        sys.path.insert(0, p)
+    from shp_io import read_polygons
+    return read_polygons
+
+
 def load_centroids(shp_path):
-    """从斜坡单元 shp 提取质心坐标（用于空间 K-Fold 聚类），EPSG:4326 经纬度即可。"""
-    import geopandas as gpd
-    gdf = gpd.read_file(shp_path)
-    centroids = np.column_stack([gdf.geometry.centroid.x, gdf.geometry.centroid.y])
-    return centroids.astype(np.float64)
+    """从斜坡单元 shp 提取质心坐标（用于空间 K-Fold 聚类），EPSG:4326 经纬度即可。
+
+    geopandas 不可用时（服务器未装 GDAL，或本机 DLL 冲突）自动回退到 tills/shp_io.py，
+    使 baseline_xgb / baseline_tabpfn 等入口脚本**无需 geopandas**即可运行。
+    """
+    try:
+        import geopandas as gpd
+        gdf = gpd.read_file(shp_path)
+        return np.column_stack([gdf.geometry.centroid.x,
+                                gdf.geometry.centroid.y]).astype(np.float64)
+    except Exception:
+        geoms, _, _ = _read_polygons()(shp_path)
+        return np.array([[g.centroid.x, g.centroid.y] for g in geoms], dtype=np.float64)
 
 
 def load_centroids_utm(shp_path, utm_epsg='EPSG:32649'):
     """质心坐标重投影到米制 UTM（EPSG:32649），供距离/邻域计算（度不是米）。"""
-    import geopandas as gpd
-    gdf = gpd.read_file(shp_path).to_crs(utm_epsg)
-    return np.column_stack([gdf.geometry.centroid.x, gdf.geometry.centroid.y]).astype(np.float64)
+    try:
+        import geopandas as gpd
+        gdf = gpd.read_file(shp_path).to_crs(utm_epsg)
+        return np.column_stack([gdf.geometry.centroid.x,
+                                gdf.geometry.centroid.y]).astype(np.float64)
+    except Exception:
+        from pyproj import CRS, Transformer
+        geoms, _, wkt = _read_polygons()(shp_path)
+        src = CRS.from_wkt(wkt) if wkt else CRS.from_epsg(4326)
+        dst = CRS.from_epsg(int(str(utm_epsg).split(':')[1]))
+        tf = Transformer.from_crs(src, dst, always_xy=True)
+        pts = [g.centroid for g in geoms]
+        x, y = tf.transform([p.x for p in pts], [p.y for p in pts])
+        return np.column_stack([np.asarray(x), np.asarray(y)]).astype(np.float64)
 
 
 def proximity_mask(centroids_utm, y, pos_idx, d_km, candidate_idx=None):

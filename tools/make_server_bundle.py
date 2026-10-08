@@ -24,26 +24,36 @@ DIST = os.path.join(ROOT, 'dist')
 CODE = ['src', 'tills', 'tools', 'docs']
 CODE_FILES = ['baseline_xgb.py', 'baseline_tabpfn.py', 'requirements.txt', '.gitignore',
               'README.md']
-DATA = [  # (相对路径, 说明, 是否可选)
-    ('features/v2/features_v2_train_38.csv', '38 维主线（训练 25,509）', False),
-    ('features/v2/features_v2_38.csv', '38 维主线（全量 25,939，出图用）', False),
-    ('features/v2/features_v2_train.csv', '34 维对照', False),
-    ('features/v2/features_v2.csv', '34 维对照（全量）', False),
-    ('features/v2/unit_id_map_v2.csv', 'ID 对照表', False),
-    ('features/v2/county_units_v2_train.csv', 'admin 分折用', False),
-    ('features/v2/county_units_v2.csv', 'admin 分折用（全量）', False),
-    ('features/v2/groups', '分组特征（地形/水系/道路/土壤/岩性/产状/力学等）', False),
-    ('features/v2/sources/daily_station_levels.csv', 'M1 逐日库水位', False),
-    ('data/slope_units', '斜坡单元 shp + 计数表（质心/几何/ID）', False),
-    ('models/tabpfn', 'TabPFN v2 权重（29 MB，来自 ModelScope，服务器免 HF）', False),
-    ('data/terrain/Terrain_MultiBand.tif', '30 m 地形栈（M2 用）', True),
-    ('features/v2/sources/ndvi_unit_matrix.csv', 'GEE NDVI 矩阵（可选）', True),
-    ('features/v2/sources/rain_unit_matrix.csv', 'GEE 降雨矩阵（可选）', True),
+DATA = [  # (相对路径, 说明, 是否可选, 是否进瘦身包)
+    ('features/v2/features_v2_train_38.csv', '38 维主线（训练 25,509）', False, True),
+    ('features/v2/features_v2_38.csv', '38 维主线（全量 25,939，出图用）', False, True),
+    ('features/v2/features_v2_train.csv', '34 维对照', False, False),
+    ('features/v2/features_v2.csv', '34 维对照（全量）', False, False),
+    ('features/v2/unit_id_map_v2.csv', 'ID 对照表', False, True),
+    ('features/v2/county_units_v2_train.csv', 'admin 分折用', False, True),
+    ('features/v2/county_units_v2.csv', 'admin 分折用（全量）', False, True),
+    ('features/v2/groups', '分组特征（地形/水系/道路/土壤/岩性/产状/力学等）', False, 'slim_groups'),
+    ('features/v2/sources/daily_station_levels.csv', 'M1 逐日库水位', False, True),
+    ('features/v2/sources/station_assign_v2.csv', '单元→就近水位站映射', False, True),
+    ('data/slope_units', '斜坡单元 shp + 计数表（质心/几何/ID）', False, 'slim_units'),
+    ('models/tabpfn', 'TabPFN v2 权重（29 MB，来自 ModelScope，服务器免 HF）', False, False),
+    ('data/terrain/Terrain_MultiBand.tif', '30 m 地形栈（M2 用）', True, False),
+    ('features/v2/sources/ndvi_unit_matrix.csv', 'GEE NDVI 矩阵（可选）', True, False),
+    ('features/v2/sources/rain_unit_matrix.csv', 'GEE 降雨矩阵（可选）', True, False),
 ]
-SKIP_DIRS = {'__pycache__', '.git', 'archive', 'dist', '.deps'}
+# 瘦身包：只带 entry 实验必需的东西（分组表只留匹配诊断用的 2 个 + M1 用的高程分位）
+SLIM_GROUPS = ['terrain.csv', 'water.csv', 'elevation_quantiles.csv', 'factors_selected.csv']
+SLIM_UNITS = ['slope_units_final.shp', 'slope_units_final.shx', 'slope_units_final.dbf',
+              'slope_units_final.prj', 'slope_units_final.cpg',
+              'slope_units_final_train.shp', 'slope_units_final_train.shx',
+              'slope_units_final_train.dbf', 'slope_units_final_train.prj',
+              'slope_units_final_train.cpg',
+              'slope_units_final_count.csv', 'slope_units_final_train_count.csv']
+SLIM_WHEELS = ['tabpfn.whl', 'tabpfn-2.1.4-py3-none-any.whl']
+SKIP_DIRS = {'__pycache__', '.git', 'archive', 'dist', '.deps', '.deps2', '_archive'}
 
 
-def add_path(zf, rel, optional=False):
+def add_path(zf, rel, optional=False, pick=None):
     p = os.path.join(ROOT, rel.replace('/', os.sep))
     if not os.path.exists(p):
         print('  %-56s %s' % (rel, '（跳过：不存在）' if optional else '⚠ 缺失'))
@@ -58,17 +68,52 @@ def add_path(zf, rel, optional=False):
             for f in files:
                 if f.endswith(('.pyc',)):
                     continue
+                if pick is not None and f not in pick:
+                    continue
                 full = os.path.join(dirpath, f)
                 zf.write(full, os.path.relpath(full, ROOT).replace(os.sep, '/'))
                 n += 1
-    sz = sum(os.path.getsize(os.path.join(dp, f)) for dp, _, fs in os.walk(p) for f in fs) \
+    sz = sum(os.path.getsize(os.path.join(dp, f)) for dp, _, fs in os.walk(p)
+             for f in fs if (pick is None or f in pick)) \
         if os.path.isdir(p) else os.path.getsize(p)
     print('  %-56s %5d 个文件 %8.1f MB' % (rel, n, sz / 1e6))
     return n
 
 
-def setup_md(with_terrain, with_gee):
-    return f"""# 服务器运行包（模型线：M1 / M2 / M3）
+def setup_md(with_terrain, with_gee, slim=False):
+    fetch_ckpt = '''
+## 2. 权重：在服务器上现取（瘦身包不含权重）
+
+国内直连 ModelScope 很快（本机实测 29 MB / 2.3 秒），比上传快得多：
+
+```bash
+python - <<'PY'
+import os, shutil, urllib.request
+url = ('https://www.modelscope.cn/api/v1/models/Prior-Labs/TabPFN-v2-clf/repo'
+       '?Revision=master&FilePath=tabpfn-v2-classifier-finetuned-zk73skhh.ckpt')
+os.makedirs('models/tabpfn', exist_ok=True)
+dst = 'models/tabpfn/tabpfn-v2-classifier-finetuned-zk73skhh.ckpt'
+req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+with urllib.request.urlopen(req, timeout=180) as r, open(dst, 'wb') as f:
+    shutil.copyfileobj(r, f, 1 << 18)
+print('downloaded %.1f MB -> %s' % (os.path.getsize(dst) / 1e6, dst))
+PY
+bash tools/verify_ckpt.sh 2>/dev/null || python -c "import os;print('ckpt', os.path.getsize('models/tabpfn/tabpfn-v2-classifier-finetuned-zk73skhh.ckpt')/1e6, 'MB')"
+```
+
+> 若 ModelScope 也慢，回退方案：本地 `dist/` 里的完整包内含权重，或用恒源云**公共网盘**中转。
+''' if slim else '''
+## 2. 权重（已随包携带，无需外网）
+
+`models/tabpfn/tabpfn-v2-classifier-finetuned-zk73skhh.ckpt`（29 MB，来自 ModelScope 的
+`Prior-Labs/TabPFN-v2-clf`；本机 huggingface.co / hf-mirror 均不可达，故走魔搭）。
+`baseline_tabpfn.py` 默认就会用它；请务必带上：
+
+```bash
+export HF_HUB_OFFLINE=1        # 禁止联网找权重，强制用本地 ckpt
+```
+'''
+    return f"""# 服务器运行包（模型线：M3 入场实验｜{'瘦身版' if slim else '完整版'}）
 
 > 生成于 {datetime.date.today()}　｜　由 `tools/make_server_bundle.py` 打包
 > 详细方案见 `docs/当前模型方案.md`；本文件只讲**怎么在服务器上跑起来**。
@@ -137,6 +182,38 @@ python -c "import tabpfn;print('tabpfn', tabpfn.__version__)"
 
 已验证兼容性：本机在 **torch 2.12.1** 上跑通 tabpfn 8.5.0 + 包内 ckpt（比 2.9 更新，故 2.9 无风险）。
 若某台机器 torch <2.5，见 §1.1。
+
+### 1.2 pip 提速：换国内镜像源（服务器下载慢时必做）
+
+```bash
+python -m pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+python -m pip config set global.timeout 60
+python -m pip config list          # 确认生效
+```
+
+常用 PyPI 镜像（任选，就近选速度最快的）：
+
+| 镜像 | 地址 |
+|---|---|
+| 清华 TUNA | `https://pypi.tuna.tsinghua.edu.cn/simple` |
+| 阿里云 | `https://mirrors.aliyun.com/pypi/simple/` |
+| 腾讯云 | `https://mirrors.cloud.tencent.com/pypi/simple` |
+| 中科大 | `https://pypi.mirrors.ustc.edu.cn/simple` |
+| 华为云 | `https://repo.huaweicloud.com/repository/pypi/simple` |
+
+临时用（不改配置）：`python -m pip install -i <镜像> <包>`
+
+**两条"不要装"的省钱要点**（能省 2~3 GB 下载）：
+
+1. **不要装 torch** —— 镜像已自带（2.9+cu128）。装了只会覆盖且白下 2.5 GB。
+2. **不要装 geopandas** —— 本项目已把 `src/dataset.py` 的质心读取改成"geopandas 不可用时
+   自动回退到 `tills/shp_io.py`"，因此**不需要 GDAL/pyogrio/fiona**（省数百 MB 且避免 DLL 问题）。
+   只需 `shapely pyproj rasterio pyshp`。
+
+<details><summary>sqlite/编码等偶发报错</summary>
+
+`python -m pip install --upgrade pip setuptools wheel` 后再试；或加 `--no-cache-dir`。
+</details>
 
 **离线安装（服务器不能联网时）**
 
@@ -258,23 +335,35 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--with-terrain', action='store_true')
     ap.add_argument('--with-gee', action='store_true')
+    ap.add_argument('--slim', action='store_true',
+                    help='瘦身包（约 25 MB）：只带 M3 入场实验必需的文件，'
+                         '权重改在服务器上从 ModelScope 现取')
     ap.add_argument('--out', default=None)
     args = ap.parse_args()
     os.makedirs(DIST, exist_ok=True)
-    out = args.out or os.path.join(DIST, 'server_bundle_%s.zip' % datetime.date.today().strftime('%m%d'))
-    print('打包 -> %s' % out)
+    out = args.out or os.path.join(
+        DIST, 'server_bundle_%s%s.zip' % (datetime.date.today().strftime('%m%d'),
+                                          '_slim' if args.slim else ''))
+    print('打包 -> %s%s' % (out, '（瘦身模式）' if args.slim else ''))
     with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
         for rel in CODE:
-            add_path(zf, rel)
+            add_path(zf, rel, pick=(SLIM_WHEELS if (args.slim and rel == 'tools') else None))
         for rel in CODE_FILES:
             add_path(zf, rel, optional=True)
-        for rel, _desc, opt in DATA:
+        for rel, _desc, opt, slim in DATA:
+            if args.slim and slim is False:
+                continue
             if rel.endswith('Terrain_MultiBand.tif') and not args.with_terrain:
                 continue
             if '_unit_matrix.csv' in rel and not args.with_gee:
                 continue
-            add_path(zf, rel, optional=opt)
-        zf.writestr('SETUP.md', setup_md(args.with_terrain, args.with_gee))
+            pick = None
+            if args.slim and slim == 'slim_groups':
+                pick = set(SLIM_GROUPS)
+            elif args.slim and slim == 'slim_units':
+                pick = set(SLIM_UNITS)
+            add_path(zf, rel, optional=opt, pick=pick)
+        zf.writestr('SETUP.md', setup_md(args.with_terrain, args.with_gee, args.slim))
     print('\n完成：%s（%.1f MB）' % (out, os.path.getsize(out) / 1e6))
     print('服务器上：unzip + 按 SETUP.md 执行')
 
