@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """打包"服务器最小上传集"：代码 + 最小数据 + 离线 wheel + TabPFN 权重 → 一个 zip。
 
 为什么需要：
@@ -320,14 +320,44 @@ python tools/paired_compare.py \\
 **门槛**：Δ 超过该口径 MDE（soft02-spatial **0.0032**、matched5-spatial **0.0081**）、配对显著、
 **spatial 与 admin 两套分折同号**，才算"取代 XGBoost"。
 
-## 7. 结果回传
+## 7. 结果回传（**重要：/hy-tmp 关机 24 小时后会被清空**）
+
+先落一份"清单+环境指纹"，再打包（JSON 自带口径/分折/维数/种子字段，可回溯命令行）：
 
 ```bash
-tar czf runs_$(date +%m%d).tgz results/runs results/*.txt results/*.json docs
+cd /hy-tmp/subjects
+mkdir -p logs
+(
+  echo "== 导出时间 =="; date
+  echo "== 环境 =="; python -V
+  python - <<'PY'
+import torch, tabpfn
+print('torch', torch.__version__, '| cuda', torch.cuda.is_available())
+print('tabpfn', tabpfn.__version__)
+PY
+  nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader
+  python -m pip freeze | grep -Ei "tabpfn|torch|xgboost|scikit|pandas|numpy|scipy|shapely|pyproj|rasterio|pyshp"
+  echo "== 结果文件清单 =="
+  ls -l results/*.json results/*.txt results/runs/tabpfn/*.json 2>/dev/null
+) > EXPORT_MANIFEST.txt
+
+tar czf export_$(date +%m%d_%H%M).tgz EXPORT_MANIFEST.txt results/*.json results/*.txt results/runs logs 2>/dev/null
+ls -lh export_*.tgz
 ```
 
-都很小（几 MB），拉回本地后可直接用 `tools/paired_compare.py` 复核；
-**不要回传 GeoTIFF/权重**（本地可用脚本重建）。
+下载方式：JupyterLab 直接下 / 平台"数据下载" / 或先传到**个人数据（云盘）**长期保存。
+**不要回传** `features/`、权重、GeoTIFF、`predictions/`（本地已有或可重建）。
+拉回本地后：`python tools/paired_compare.py xgb=...json tabpfn=...json`
+
+### 7.1 保存环境（下次少装 10 分钟）
+
+平台给的"备份镜像"只保存**系统盘环境**（conda 环境/依赖），**不含 `/hy-tmp`**；
+而 `/hy-tmp` 关机 24 小时即清空。所以：
+
+1. **环境** → 控制台 `我的实例 → 实例管理 → 创建备份镜像`；下次创建实例时选"自定义镜像"，开机即可用。
+2. **数据与结果** → 上传到 **个人数据（云盘）**（可随实例迁移、长期保存），或下载到本地。
+3. 另一条轻量路线：把依赖清单存成文件，下次重装即可（我们依赖很少，约 1 分钟）
+   —— 见 `EXPORT_MANIFEST.txt` 里的 `pip freeze` 片段。
 """
 
 
