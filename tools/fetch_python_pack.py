@@ -27,15 +27,17 @@ MIRRORS = ['https://mirrors.aliyun.com/pypi/simple/',
 
 
 def _platform_tags():
-    """按当前平台给出 wheel 标签优先级（Windows 与 Linux 服务器通用）。"""
+    """按当前平台**与 Python 版本**给出 wheel 标签优先级（本机与服务器通用）。"""
+    v = sys.version_info
+    cp = 'cp%d%d' % (v.major, v.minor)          # cp310 / cp311 / cp312 ...
     if sys.platform.startswith('win'):
-        return ['cp310-cp310-win_amd64', 'cp310-abi3-win_amd64', 'py3-none-win_amd64',
-                'cp39-abi3-win_amd64', 'py3-none-any', 'cp310-none-any']
+        return ['%s-%s-win_amd64' % (cp, cp), '%s-abi3-win_amd64' % cp,
+                'py3-none-win_amd64', 'cp39-abi3-win_amd64', 'py3-none-any', '%s-none-any' % cp]
     if sys.platform.startswith('linux'):
         x86 = 'manylinux_2_17_x86_64.manylinux2014_x86_64'
-        return ['cp310-cp310-%s' % x86, 'cp310-abi3-%s' % x86, 'cp39-abi3-%s' % x86,
-                'cp38-abi3-%s' % x86, 'py3-none-manylinux1_x86_64', 'py3-none-any',
-                'cp310-none-any']
+        return ['%s-%s-%s' % (cp, cp, x86), '%s-abi3-%s' % (cp, x86),
+                'cp39-abi3-%s' % x86, 'cp38-abi3-%s' % x86,
+                'py3-none-manylinux1_x86_64', 'py3-none-any', '%s-none-any' % cp]
     return ['py3-none-any']
 
 
