@@ -82,6 +82,42 @@ cd /root/autodl-tmp && unzip server_bundle_*.zip -d subjects && cd subjects
 export PYTHONPATH=$PWD/.deps            # 若用离线 wheel 安装，见下
 ```
 
+### 0.1 先激活环境（否则 `import torch` 报 ModuleNotFoundError）
+
+恒源云官方文档明确：**登录终端默认不自动进入 base 环境**，此时 `python` 是系统解释器，
+而 torch 装在 miniconda 的环境里 → 于是 `ModuleNotFoundError: No module named 'torch'`。
+
+```bash
+conda activate base        # 或 conda env list 看 torch 在哪个环境，再激活它
+conda config --set auto_activate_base true   # 可选：以后登录自动进 base
+python -V && python -c "import torch;print(torch.__version__, torch.cuda.is_available())"
+```
+
+装包统一用 `python -m pip install ...`（而不是裸 `pip`），避免装到别的解释器里。
+
+环境自检一把过（缺哪个包会直接列出来）：
+
+```bash
+python - <<'PY'
+import sys, importlib
+print('python', sys.version.split()[0], '|', sys.executable)
+try:
+    import torch
+    print('torch', torch.__version__, '| cuda', torch.cuda.is_available(),
+          '|', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'NO GPU')
+except Exception as e:
+    print('torch 缺失 ->', e)
+for m in ['tabpfn','xgboost','sklearn','pandas','numpy','scipy','shapely','pyproj','rasterio','shapefile']:
+    try:
+        mod = importlib.import_module(m); print('  OK  %-10s %s' % (m, getattr(mod,'__version__','?')))
+    except Exception:
+        print('  MISS %-9s <-- 需要装' % m)
+PY
+```
+
+若 base 里确实没有 torch（镜像只带 CUDA）：`python -m pip install torch --index-url https://download.pytorch.org/whl/cu128`。
+磁盘紧张时按官方建议把虚拟环境放到数据盘：`conda create -p /hy-tmp/myenv python=3.11`。
+
 ## 1. 环境
 
 **本实验已确认可用的镜像组合：PyTorch 2.9 / CUDA 12.8.1 / Python 3.11（恒源云）**
