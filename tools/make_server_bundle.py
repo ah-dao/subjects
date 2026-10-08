@@ -82,49 +82,49 @@ cd /root/autodl-tmp && unzip server_bundle_*.zip -d subjects && cd subjects
 export PYTHONPATH=$PWD/.deps            # 若用离线 wheel 安装，见下
 ```
 
-## 1. 环境（两条路，任选）
+## 1. 环境
 
-**A. 在线安装（服务器推荐；AutoDL/恒源云一般都有学术加速）**
+**本实验已确认可用的镜像组合：PyTorch 2.9 / CUDA 12.8.1 / Python 3.11（恒源云）**
+→ torch ≥2.5 ⇒ **直接用 tabpfn 8.5.0，无需降级**。
 
 ```bash
-pip install torch --index-url https://download.pytorch.org/whl/cu128      # >=2.5，cu128
+# ① 先确认版本（期望：2.9.x / True / 你的卡名 / Python 3.11）
+nvidia-smi
+python -V
+python -c "import torch;print(torch.__version__, torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+
+# ② 装依赖（固定 tabpfn 版本，别让它漂移）
 pip install xgboost scikit-learn pandas numpy scipy shapely pyproj rasterio pyshp
-pip install ./tools/wheels/tabpfn.whl      # 或直接 pip install tabpfn
+pip install ./tools/wheels/tabpfn.whl          # 即 8.5.0；或 pip install "tabpfn==8.5.0"
+python -c "import tabpfn;print('tabpfn', tabpfn.__version__)"
 ```
 
-**B. 离线安装**
+已验证兼容性：本机在 **torch 2.12.1** 上跑通 tabpfn 8.5.0 + 包内 ckpt（比 2.9 更新，故 2.9 无风险）。
+若某台机器 torch <2.5，见 §1.1。
 
-⚠ 注意：本包内 `tools/wheels/` 的**编译型 wheel 是 Windows 版**（本机生成），**Linux 服务器装不上**。
-在服务器上重新抓一套 Linux wheel（脚本会按平台自动选标签）：
+**离线安装（服务器不能联网时）**
+
+⚠ 包内 `tools/wheels/` 的**编译型 wheel 是 Windows 版**，Linux 装不上；在服务器上重新抓：
 
 ```bash
-python tools/fetch_python_pack.py          # 抓 wheel 到 tools/wheels/ 并离线安装到 .deps/
+python tools/fetch_python_pack.py              # 自动按平台+Python 版本选标签（cp311/manylinux）
 export PYTHONPATH=$PWD/.deps
 ```
 
-### 1.1 如果镜像的 PyTorch 只到 2.4（恒源云常见）
+### 1.1 后备：如果某台机器的 torch 只到 2.4
 
-TabPFN 的版本与 torch 下限：**2.x 系列要求 `torch>=2.1`；6.x/8.x 要求 `torch>=2.5`**。
-三条出路，**推荐第一条**：
+TabPFN 版本与 torch 下限：**2.x 要求 `torch>=2.1`；6.x/8.x 要求 `torch>=2.5`**。
+`tabpfn 2.1.4` 用**同一个 ckpt** 已实测跑通本项目 runner（冒烟 2 折 AUC 0.8194，诊断一致）：
 
 ```bash
-# ① 降到 tabpfn 2.x（同属 TabPFN v2、用同一个 ckpt；本机已实测跑通）
 pip install "tabpfn==2.1.4"                                                    # 联网
 python tools/fetch_python_pack.py "tabpfn==2.1.4" && export PYTHONPATH=$PWD/.deps   # 离线
-
-# ② 升级 torch（与镜像无关，只看驱动；先 nvidia-smi 确认驱动 >= 525）
+# 或升级 torch（与镜像无关，只看驱动 ≥525；50 系卡必须 cu128 且驱动 ≥570）
 pip install "torch==2.5.1" --index-url https://download.pytorch.org/whl/cu124
-
-# ③ 换平台：AutoDL 有更新的 PyTorch 镜像（额度也一样）
 ```
 
-⚠ **选定 tabpfn 版本后必须固定**：2.x 与 8.x 的默认集成数不同，AUC 约有 0.005 量级的小差异。
-`baseline_tabpfn.py` 已把 `tabpfn_version` / `torch_version` 写进 JSON，配对比较前请核对一致。
-
-| 卡型 | torch 轮子 |
-|---|---|
-| 30/40 系 | `cu121` / `cu124` 均可（驱动 ≥525） |
-| **50 系（Blackwell）** | **必须 `cu128`**，驱动 ≥570 |
+⚠ **tabpfn 版本必须全程固定**：2.x 与 8.x 的默认集成数不同，AUC 有 ≈0.005 的差异。
+脚本会把 `tabpfn_version` / `torch_version` 写进 JSON，配对比较前核对一致。
 
 ## 2. 权重（已随包携带，无需外网）
 
@@ -155,9 +155,18 @@ python baseline_xgb.py --features-csv features/v2/features_v2_train_38.csv \\
     --method spatial_kmeans --seed 42 --neg-sampling matched --neg-k 5
 ```
 
-## 5. M3 入场实验（2×2：模型 × 人群）—— 建议分两阶段
+## 5. M3 入场实验（2×2：模型 × 人群）—— 务必先做计时探针
 
-**阶段 1（先跑最小可判定的四格，估计 1~2 小时机时）**
+**阶段 0（1 格计时，几分钟）**：先只跑一格 matched 口径，看 GPU 上到底多快，
+再决定 `--seeds` 取 3 还是 10：
+
+```bash
+time python -u baseline_tabpfn.py --features-csv features/v2/features_v2_train_38.csv \
+    --method spatial_kmeans --context matched --match-k 5 --seeds 1
+# 看输出的"平均 AUC/采样池 AUC"与 shell 的 real 时间；记录单格耗时 T
+```
+
+**阶段 1（四格 × 两分折，估计 1.5–2 小时机时）**
 
 ```bash
 for M in spatial_kmeans admin; do
