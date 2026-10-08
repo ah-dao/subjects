@@ -181,6 +181,39 @@ def main():
                 (fold, cal, np.round(arr.mean(axis=1), 4).tolist(),
                  float(arr.mean(axis=1).max() - arr.mean(axis=1).min())))
 
+    # ---------- T1：同一批训练行上的模型族效应 ----------
+    t1dir = os.path.join(os.path.dirname(d), 'm3_t1_samepop')
+    if os.path.isdir(t1dir):
+        log('')
+        log('【D】T1 同人群判定：XGBoost 训练在"与 TabPFN 逐位相同的 12k 上下文"上（不加权）')
+        log('  %-9s %10s %10s %10s %10s %10s %9s %s' %
+            ('分折', 'XGB-全量', 'XGB-12k', 'TabPFN-12k', '人群效应', '模型效应', 'MDE', '判定'))
+        for fold in ('spatial', 'admin'):
+            tp = cfg.get(('tabpfn', 'soft', fold))
+            if not tp:
+                continue
+            mt = np.array(tp['fold_aucs'], float)
+            t1 = []
+            for s in seeds:
+                p = os.path.join(t1dir, 'xgb_soft_%s_s%d.json' % (fold, s))
+                if os.path.exists(p):
+                    t1.append(np.array(json.load(open(p, encoding='utf-8'))['fold_aucs'], float))
+            if not t1 or len(np.concatenate(t1)) != len(mt):
+                log('  %-9s T1 结果不完整，跳过' % fold)
+                continue
+            t1v = np.concatenate(t1)
+            full, _, _, nfull, _ = series_xgb(d, 'xgboost', fold, 'soft', seeds)
+            s_model = paired(t1v, mt)              # 模型族效应：同人群，XGB-12k → TabPFN
+            s_pop = paired(full, t1v)              # 人群效应：XGB-全量 → XGB-12k
+            mde = MDE[('soft', fold)]
+            log('  %-9s %10.4f %10.4f %10.4f %+10.4f %+10.4f %9.4f %s' %
+                (fold, full.mean(), t1v.mean(), mt.mean(), s_pop['d'], s_model['d'], mde,
+                 '模型族超 MDE' if s_model['d'] > mde else '模型族未超 MDE'))
+            log('          模型族配对: Δ=%+.4f sd=%.4f t=%.2f p=%.4f 胜/负=%d/%d（n=%d）'
+                % (s_model['d'], s_model['sd'], s_model['t'], s_model['p'],
+                   s_model['wins'], s_model['losses'], s_model['n']))
+            log('          人群截断配对: Δ=%+.4f（XGB 自己在 12k 与全量上的差）' % s_pop['d'])
+
     log('')
     log('【C】结论')
     for cal in ('soft', 'matched'):
