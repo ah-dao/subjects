@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """打包"服务器最小上传集"：代码 + 最小数据 + 离线 wheel + TabPFN 权重 → 一个 zip。
 
 为什么需要：
@@ -49,7 +49,7 @@ SLIM_UNITS = ['slope_units_final.shp', 'slope_units_final.shx', 'slope_units_fin
               'slope_units_final_train.dbf', 'slope_units_final_train.prj',
               'slope_units_final_train.cpg',
               'slope_units_final_count.csv', 'slope_units_final_train_count.csv']
-SLIM_WHEELS = ['tabpfn.whl', 'tabpfn-2.1.4-py3-none-any.whl']
+SLIM_WHEELS = ['tabpfn-8.5.0-py3-none-any.whl', 'tabpfn-2.1.4-py3-none-any.whl']
 SKIP_DIRS = {'__pycache__', '.git', 'archive', 'dist', '.deps', '.deps2', '_archive'}
 
 
@@ -176,7 +176,7 @@ python -c "import torch;print(torch.__version__, torch.cuda.is_available(), torc
 
 # ② 装依赖（固定 tabpfn 版本，别让它漂移）
 pip install xgboost scikit-learn pandas numpy scipy shapely pyproj rasterio pyshp
-pip install ./tools/wheels/tabpfn.whl          # 即 8.5.0；或 pip install "tabpfn==8.5.0"
+pip install ./tools/wheels/tabpfn-8.5.0-py3-none-any.whl          # 即 8.5.0；或 pip install "tabpfn==8.5.0"
 python -c "import tabpfn;print('tabpfn', tabpfn.__version__)"
 ```
 

@@ -1,4 +1,4 @@
-# tools/wheels —— 离线依赖轮子（TabPFN 运行所需）
+﻿# tools/wheels —— 离线依赖轮子（TabPFN 运行所需）
 
 > 用途：当机器**无法联网 pip**（如本机受限环境）或**服务器不能访问 HuggingFace** 时，
 > 用这套 wheel 离线装出可运行的 TabPFN 环境。
@@ -8,7 +8,7 @@
 
 | 包 | 版本 | 备注 |
 |---|---|---|
-| `tabpfn` | 8.5.0 | TabPFN v2；`Requires-Dist: torch>=2.5` |
+| `tabpfn` | 8.5.0（文件名必须带版本与标签，否则 pip 报 Invalid wheel filename） | TabPFN v2；`Requires-Dist: torch>=2.5` |
 | `pydantic` / `pydantic-core` | 2.13.5 / **2.46.5** | **必须精确配套**（pydantic 会钉死 core 版本，错配直接 ImportError） |
 | `pydantic-settings` | 2.15.0 | |
 | `annotated-types` | 0.8.0 | pydantic 依赖 |
@@ -26,7 +26,7 @@
 ## 两种安装方式
 
 ```bash
-# A. 离线 pip（有 pip 但无网）
+# A. 离线 pip（有 pip 但无网；注意 wheel 文件名必须合规：名字-版本-标签.whl）
 pip install --no-index --no-deps tools/wheels/*.whl
 
 # B. 连 pip 都不能用（如本机沙箱）：直接解包（wheel 就是 zip）

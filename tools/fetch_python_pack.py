@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """受限网络下的离线依赖获取器：从国内 PyPI 镜像直接抓 wheel 并离线安装到工作区 .deps。
 
 背景（本机实测）：
@@ -179,7 +179,7 @@ def main():
           if os.path.isdir(os.path.join(TARGET, d)) and not d.endswith('.dist-info')]
     print('  .deps 现有包(%d): %s' % (len(ok), ', '.join(ok[:24])))
     # 顺手校验 tabpfn wheel 里的依赖是否齐
-    w = os.path.join(WHEEL_DIR, 'tabpfn.whl')
+    w = os.path.join(WHEEL_DIR, 'tabpfn-8.5.0-py3-none-any.whl')
     if os.path.exists(w):
         meta = [n for n in zipfile.ZipFile(w).namelist() if n.endswith('METADATA')][0]
         req = [l.split()[1].split(';')[0].split('>')[0].split('=')[0].strip()
