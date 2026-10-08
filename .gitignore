@@ -1,11 +1,13 @@
-﻿__pycache__/
+__pycache__/
 _tmppip/
 
 # 本地依赖与产物（不入库）
 #   .deps/    离线依赖（tools/fetch_python_pack.py 解包安装；本机 pip 无网时的兜底）
+#   .deps2/   临时依赖目录（验证 tabpfn 2.x 与 torch 2.4 路线用）
 #   models/   第三方权重（TabPFN ckpt 29MB；随服务器包分发，不进 git）
 #   dist/     服务器上传包（tools/make_server_bundle.py 生成）
 .deps/
+.deps2/
 models/
 dist/
 
