@@ -1,6 +1,14 @@
 __pycache__/
 _tmppip/
 
+# 本地依赖与产物（不入库）
+#   .deps/    离线依赖（tools/fetch_python_pack.py 解包安装；本机 pip 无网时的兜底）
+#   models/   第三方权重（TabPFN ckpt 29MB；随服务器包分发，不进 git）
+#   dist/     服务器上传包（tools/make_server_bundle.py 生成）
+.deps/
+models/
+dist/
+
 # 数据与生成产物（体积较大，不提交到 git）
 #   data/          原始数据（21 GB，只读）
 #   features/      特征表；其中 features/v2/ablation/ 是消融中间件，可随时删（见该目录 README）

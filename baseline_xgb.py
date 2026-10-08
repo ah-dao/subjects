@@ -324,6 +324,8 @@ def main():
         'univariate_auc': uni_df.to_dict('records'),
         'excluded_features': exclude,
         'used_features': use_features,
+        'features_csv': str(csv_path),
+        'fold_method': args.method, 'folds': args.folds, 'seed': args.seed,
         'weight_scheme': args.weight_scheme,
         'neg_sampling': args.neg_sampling,
         'neg_km': args.neg_km, 'neg_k': args.neg_k, 'neg_lam': args.neg_lam,
