@@ -31,14 +31,19 @@ import sys
 import numpy as np
 import pandas as pd
 
-ROOT = r'C:\Users\dollars\code\subjects'
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
 RES = os.path.join(ROOT, 'results')
 BUF = []
 
 
 def log(s=''):
-    print(str(s).encode('ascii', 'replace').decode('ascii'), flush=True)
-    BUF.append(str(s))
+    s = str(s)
+    try:
+        print(s, flush=True)
+    except UnicodeEncodeError:                     # Windows GBK 控制台
+        print(s.encode('ascii', 'replace').decode('ascii'), flush=True)
+    BUF.append(s)
 
 
 def logit(p, eps=1e-6):
@@ -173,6 +178,7 @@ def main():
         ('模型', 'α', '选中单元数', '选中面积占比', '实际覆盖率', '随机基线覆盖'))
     area = x['area_km2'].values if 'area_km2' in x.columns else np.ones(len(y))
     tot_area, tot_pos = area.sum(), int(y.sum())
+    # 阈值 = 正样本分数的 α 分位（带 (n+1) 有限样本修正）；覆盖率在**同一批正样本**上统计
     for nm, p in (('XGB', p_xgb), ('TabPFN', p_tp if has_tp else None)):
         if p is None:
             continue
@@ -187,6 +193,47 @@ def main():
             log('  %-8s %6.2f %10d %11.1f%% %11.1f%% %11.1f%%'
                 % (nm, alpha, int(sel.sum()), 100 * area[sel].sum() / tot_area, 100 * cov,
                    100 * area[sel].sum() / tot_area))
+    log('  ⚠ 上表是"自校准"（阈值与覆盖率用同一批正样本）→ 覆盖率是按构造出来的，偏乐观，只作上界参考。')
+
+    # ---- 交叉共形：阈值在折外正样本上定，覆盖率在留出折上验（可对外说"保证"的口径）----
+    fid = None
+    try:
+        from src.config import study_shp_path
+        from src.dataset import load_centroids_utm, spatial_folds
+        cent = load_centroids_utm(study_shp_path())
+        if len(cent) == len(y):
+            fid = spatial_folds(cent, n_folds=5, seed=42)
+        else:
+            log('  [交叉共形] shp 人群(%d)与 OOF(%d)不一致，跳过' % (len(cent), len(y)))
+    except Exception as e:
+        log('  [交叉共形] 无法构建空间折（%s: %s），跳过' % (type(e).__name__, e))
+    if fid is not None:
+        log('')
+        log('  交叉共形（空间 5 折：阈值在折外正样本上定，覆盖率在留出折上验）：')
+        log('  %-8s %6s %10s %12s %12s %12s' %
+            ('模型', 'α', '选中单元数', '选中面积占比', '实测覆盖率', '阈值(逐折)'))
+        for nm, p in (('XGB', p_xgb), ('TabPFN', p_tp if has_tp else None)):
+            if p is None:
+                continue
+            ok = np.isfinite(p)
+            for alpha in (0.10, 0.20):
+                sel = np.zeros(len(y), bool)
+                thr = []
+                for f in range(int(fid.max()) + 1):
+                    cal = ok & (fid != f) & (y == 1)          # 折外正样本 → 定阈值
+                    if cal.sum() == 0:
+                        continue
+                    sc = np.sort(1 - p[cal])
+                    n = len(sc)
+                    k = int(np.ceil((n + 1) * (1 - alpha))) - 1
+                    q = sc[min(k, n - 1)]
+                    thr.append(1 - q)
+                    sel |= ok & (fid == f) & (p >= 1 - q)     # 留出折 → 验覆盖率
+                cov = y[sel].sum() / tot_pos
+                log('  %-8s %6.2f %10d %11.1f%% %11.1f%% %12s'
+                    % (nm, alpha, int(sel.sum()), 100 * area[sel].sum() / tot_area, 100 * cov,
+                       '%.4f~%.4f' % (min(thr), max(thr)) if thr else '-'))
+        log('  （未命中单元 = sel 之外的滑坡，即"漏掉的比例"；漏检率目标 = α）')
     # 与现有等频分级对比：前 X% 面积的真实覆盖
     for frac in (0.10, 0.20, 0.30):
         o = np.argsort(-p_xgb)
