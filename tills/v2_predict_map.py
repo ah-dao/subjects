@@ -392,7 +392,7 @@ def main():
     log('  出图口径 soft02 %.4f (mean of %s) | 归因口径 matched5 %.4f'
         % (float(np.mean(auc_soft)), np.round(auc_soft, 4).tolist(), float(np.mean(auc_mat))))
 
-    def level_table(lev, name):
+    def level_table(lev, name, prob=None):
         log('')
         log('  [%s] 分级统计(训练人口 25,509, 面积加权)' % name)
         log('  %-6s %8s %11s %9s %8s %10s' % ('级别', '单元数', '面积km2', '面积占比', '滑坡数', '滑坡占比'))
@@ -404,18 +404,18 @@ def main():
             log('  %-6s %8d %11.1f %8.2f%% %8d %9.2f%%'
                 % (LEVEL_NAMES[L - 1], int(msk.sum()), a, 100 * a / tot_a, npos, 100 * npos / tot_p))
             rows.append({'level': L, 'units': int(msk.sum()), 'area_km2': float(a), 'n_pos': npos})
-        order = np.argsort(-lev[is_train])
+        order = np.argsort(-(prob[is_train] if prob is not None else lev[is_train]))
         a_sorted = area_km2[is_train][order]
         y_sorted = y[is_train][order]
         cum = np.cumsum(a_sorted) / a_sorted.sum()
-        for frac in (0.10, 0.20, 0.30):
+        for frac in (0.10, 0.20, 0.30):      # 按概率排序（而非分级；级内顺序任意会低估覆盖）
             k = int(np.searchsorted(cum, frac) + 1)
-            log('  前 %2d%% 面积(高易发优先) 覆盖 %.1f%% 的滑坡'
+            log('  前 %2d%% 面积(按概率优先) 覆盖 %.1f%% 的滑坡'
                 % (frac * 100, 100 * y_sorted[:k].sum() / tot_p))
         return rows
 
-    lv_soft = level_table(lev_soft, 'soft02 出图口径')
-    lv_mat = level_table(lev_mat, 'matched5 归因口径')
+    lv_soft = level_table(lev_soft, 'soft02 出图口径', p_soft)
+    lv_mat = level_table(lev_mat, 'matched5 归因口径', p_mat)
 
     diff = (lev_mat - lev_soft)[is_train]
     log('')

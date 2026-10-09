@@ -1,4 +1,4 @@
-"""
+﻿"""
 TabPFN v2 基线（表格基础模型线：与 baseline_xgb.py **同口径**对照）。
 
 2026-10 改版要点（v2 主线）：
@@ -77,6 +77,8 @@ def main():
     ap.add_argument('--model-path', default=None,
                     help='权重路径；默认用 models/tabpfn/tabpfn-v2-classifier-finetuned-zk73skhh.ckpt（本地已备）')
     ap.add_argument('--smoke', action='store_true', help='冒烟：1 折 1 种子 + 小上下文')
+    ap.add_argument('--save-oof', default='',
+                    help='逐单元 OOF 概率写到该 CSV（用于集成/校准/共形预测）；多种子时同时给种子间标准差作为单元级不确定性')
     args = ap.parse_args()
 
     csv_path = Path(args.features_csv) if args.features_csv else (
@@ -146,9 +148,11 @@ def main():
         fold_id = random_folds(len(y), n_folds=args.folds, seed=args.seed)
 
     all_aucs, all_pools, all_recalls, all_ctx, per_seed, match_diag = [], [], [], [], [], []
+    oof_all = []                                              # 每种子的逐单元 OOF（用于集成/不确定性）
     for s in range(args.seeds):
         rng = np.random.RandomState(args.seed + 1000 * s)
         aucs, pools, recalls = [], [], []
+        oof_seed = np.full(len(y), np.nan) if args.save_oof else None
         for fold in range(args.folds):
             tr_idx, va_idx = fold_indices(fold_id, fold)
             if args.smoke:                       # 冒烟：验证集也要缩小（CPU 上每行预测约 0.08~0.2s）
@@ -242,6 +246,8 @@ def main():
             clf = TabPFNClassifier(**kwargs)
             clf.fit(X[keep], y[keep])
             prob = clf.predict_proba(X[va_idx])[:, 1]
+            if args.save_oof:                                  # 收集逐单元 OOF 概率
+                oof_seed[va_idx] = prob
             a, r = summarize(y[va_idx], prob)
             aucs.append(float(a)); recalls.append(float(r))
 
@@ -258,8 +264,20 @@ def main():
                          'mean_auc_pool': float(np.mean(pools)),
                          'mean_recall': float(np.mean(recalls))})
         all_aucs += aucs; all_pools += pools; all_recalls += recalls
+        if oof_seed is not None:
+            oof_all.append(oof_seed)
         if args.smoke:
             break
+
+    if args.save_oof and oof_all:
+        M = np.vstack(oof_all)
+        p_mean, p_sd = np.nanmean(M, axis=0), np.nanstd(M, axis=0)
+        out_p = args.save_oof if os.path.isabs(args.save_oof) else os.path.join(ROOT, args.save_oof)
+        os.makedirs(os.path.dirname(out_p), exist_ok=True)
+        pd.DataFrame({'unit_id': unit_id, 'label': y, 'p_tabpfn': p_mean,
+                      'p_tabpfn_sd': p_sd}).to_csv(out_p, index=False, encoding='utf-8-sig')
+        print(f'[OOF] 已写出 {out_p}（{len(y)} 单元；p_tabpfn=种子均值，'
+              f'p_tabpfn_sd=种子间标准差，可作单元级不确定性）')
 
     result = {
         'model': 'TabPFN-v2', 'model_path': ckpt, 'device': device,
