@@ -358,6 +358,32 @@ ls -lh export_*.tgz
 2. **数据与结果** → 上传到 **个人数据（云盘）**（可随实例迁移、长期保存），或下载到本地。
 3. 另一条轻量路线：把依赖清单存成文件，下次重装即可（我们依赖很少，约 1 分钟）
    —— 见 `EXPORT_MANIFEST.txt` 里的 `pip freeze` 片段。
+
+## 8. M2（像元袋 MIL）预处理与训练
+
+M2 需要**逐像元**的地形数据，因此要在服务器上做一次预处理（本地 rasterio 被系统策略拦截，无法本机做）。
+需要 `data/terrain/Terrain_MultiBand.tif`（30 m 五波段地形栈，约 76 MB）——**用 `--with-terrain` 打的包已包含**。
+
+```bash
+# ① 栅格化单元（约 1-2 分钟）：把 25,939 个单元按 unit_id 画到与地形栈同一网格
+python tills/v2_build_unit_grid.py
+#   产物 features/v2/unit_id_grid.tif；报告 results/unit_grid_report.txt
+#   校验：每单元像元数应与 features/v2/groups/elevation_quantiles.csv 的 n_px 接近（r≈1）
+
+# ② 导出像元袋原料（约 5-10 分钟）：分块窗口读取，只在有单元像元的窗口取数
+python tills/v2_build_unit_bags.py --block 1024
+#   产物 features/v2/unit_bags.npz（uid/row/col/X + bands）；报告 results/unit_bags_report.txt
+
+# ③ 模型骨架冒烟（CPU 即可，秒级）
+python tills/v2_model_mil.py --smoke-synthetic
+
+# ④ 真数据训练（GPU；base logit 来自出图脚本的 OOF 概率列，做残差融合）
+python tills/v2_model_mil.py --bags features/v2/unit_bags.npz \\
+    --tab features/v2/features_v2_train_38.csv --base-col p_soft02 --k 64 --epochs 5
+```
+
+> ⚠ M2 的验收标准（§0）与 M3 相同：Δ 必须超过该口径 MDE、两分折同号；
+> 且主战场是**消落带内子集 AUC**（该子集 MDE=0.0069，比全库更大，需要 `--seeds` 提高重复次数）。
 """
 
 
@@ -381,9 +407,10 @@ def main():
         for rel in CODE_FILES:
             add_path(zf, rel, optional=True)
         for rel, _desc, opt, slim in DATA:
-            if args.slim and slim is False:
+            is_terrain = rel.endswith('Terrain_MultiBand.tif')
+            if args.slim and slim is False and not (args.with_terrain and is_terrain):
                 continue
-            if rel.endswith('Terrain_MultiBand.tif') and not args.with_terrain:
+            if is_terrain and not args.with_terrain:
                 continue
             if '_unit_matrix.csv' in rel and not args.with_gee:
                 continue
