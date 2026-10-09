@@ -27,7 +27,7 @@ from pyproj import CRS, Transformer
 from shapely.ops import transform as shp_transform
 
 warnings.filterwarnings('ignore')
-ROOT = r'C:\Users\dollars\code\subjects'
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # 跨平台：本地/服务器通用
 sys.path.insert(0, os.path.join(ROOT, 'tills'))
 from shp_io import read_polygons                                            # noqa: E402
 
@@ -39,8 +39,17 @@ BUF = []
 
 
 def log(s=''):
-    print(str(s).encode('ascii', 'replace').decode('ascii'), flush=True)
-    BUF.append(str(s))
+    s = str(s)
+    try:
+        print(s, flush=True)
+    except UnicodeEncodeError:                     # Windows GBK 控制台
+        print(s.encode('ascii', 'replace').decode('ascii'), flush=True)
+    BUF.append(s)
+
+
+def save_report():
+    os.makedirs(os.path.dirname(REPORT), exist_ok=True)
+    open(REPORT, 'w', encoding='utf-8').write('\n'.join(BUF))
 
 
 def main():
@@ -85,7 +94,7 @@ def main():
     log('  像元数为 0 的单元（栅格化后落空）：%d 个' % int((m['n_grid'] == 0).sum()))
     log('  历史口径 n_px 合计 %d | 本次栅格化合计 %d（差 %.2f%%）'
         % (m['n_px'].sum(), m['n_grid'].sum(), 100 * (m['n_grid'].sum() - m['n_px'].sum()) / m['n_px'].sum()))
-    open(REPORT, 'w', encoding='utf-8').write('\n'.join(BUF))
+    save_report()
     log('')
     log('DONE -> %s' % OUT)
 

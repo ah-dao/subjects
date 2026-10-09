@@ -36,6 +36,7 @@ DATA = [  # (相对路径, 说明, 是否可选, 是否进瘦身包)
     ('features/v2/sources/daily_station_levels.csv', 'M1 逐日库水位', False, True),
     ('features/v2/sources/station_assign_v2.csv', '单元→就近水位站映射', False, True),
     ('data/slope_units', '斜坡单元 shp + 计数表（质心/几何/ID）', False, 'slim_units'),
+    ('predictions/oof_v2_predictions.csv', '出图口径逐单元 OOF 概率（M2 残差融合的 base）', False, True),
     ('models/tabpfn', 'TabPFN v2 权重（29 MB，来自 ModelScope，服务器免 HF）', False, False),
     ('data/terrain/Terrain_MultiBand.tif', '30 m 地形栈（M2 用）', True, False),
     ('features/v2/sources/ndvi_unit_matrix.csv', 'GEE NDVI 矩阵（可选）', True, False),
@@ -385,8 +386,16 @@ python tills/v2_build_unit_bags.py --block 1024
 python tills/v2_model_mil.py --smoke-synthetic
 
 # ④ 真数据训练（GPU；base logit 来自出图脚本的 OOF 概率列，做残差融合）
-python tills/v2_model_mil.py --bags features/v2/unit_bags.npz \\
-    --tab features/v2/features_v2_train_38.csv --base-col p_soft02 --k 64 --epochs 5
+#    ⚠ --base-csv 必须给，且列名要真实存在：脚本对缺失列会直接报错（不会静默当 0）
+python tills/v2_model_mil.py --method spatial_kmeans --epochs 8 --k 64 \\
+    --base-csv predictions/oof_v2_predictions.csv --base-col p_soft02
+python tills/v2_model_mil.py --method admin --epochs 8 --k 64 \\
+    --base-csv predictions/oof_v2_predictions.csv --base-col p_soft02
+#    产物 results/runs/mil/mil_<method>_k64_e8.json + _oof.csv；报告 results/mil_report_<method>.txt
+#    每个折会打印「base -> MIL」的 ΔAUC，并单独给出消落带内子集（主战场，MDE=0.0069）
+
+# ④b 先花 1 分钟确认真数据链路（只取 3000 单元、1 epoch）
+python tills/v2_model_mil.py --method admin --folds 2 --limit-units 3000 --epochs 1 --k 32
 ```
 
 > ⚠ M2 的验收标准（§0）与 M3 相同：Δ 必须超过该口径 MDE、两分折同号；

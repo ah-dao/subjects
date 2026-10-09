@@ -25,7 +25,7 @@ import rasterio
 from rasterio.windows import Window
 
 warnings.filterwarnings('ignore')
-ROOT = r'C:\Users\dollars\code\subjects'
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # 跨平台：本地/服务器通用
 GRID = os.path.join(ROOT, 'features', 'v2', 'unit_id_grid.tif')
 TERRAIN = os.path.join(ROOT, 'data', 'terrain', 'Terrain_MultiBand.tif')
 REPORT = os.path.join(ROOT, 'results', 'unit_bags_report.txt')
@@ -33,8 +33,12 @@ BUF = []
 
 
 def log(s=''):
-    print(str(s).encode('ascii', 'replace').decode('ascii'), flush=True)
-    BUF.append(str(s))
+    s = str(s)
+    try:
+        print(s, flush=True)
+    except UnicodeEncodeError:                     # Windows GBK 控制台
+        print(s.encode('ascii', 'replace').decode('ascii'), flush=True)
+    BUF.append(s)
 
 
 def main():
@@ -84,6 +88,7 @@ def main():
     np.savez_compressed(args.out, uid=uid, row=row, col=col, X=X,
                         bands=np.array(bands, dtype=object))
     log('已写出 %s（%.1f MB）' % (args.out, os.path.getsize(args.out) / 1e6))
+    os.makedirs(os.path.dirname(REPORT), exist_ok=True)
     open(REPORT, 'w', encoding='utf-8').write('\n'.join(BUF))
     log('DONE -> %s' % args.out)
 
