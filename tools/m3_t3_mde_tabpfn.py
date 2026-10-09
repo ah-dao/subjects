@@ -119,6 +119,7 @@ def main():
     ap.add_argument('--nulls', type=int, default=N_NULL, help='置换零分布重复次数（默认 5）')
     ap.add_argument('--dry-run', action='store_true')
     args = ap.parse_args()
+    os.makedirs(RES, exist_ok=True)
     paths = build_arms(args.nulls)
     log('T3：TabPFN 置换零分布 → 新 MDE | 分折 %s | 每臂 %d 种子 × 5 折 | 臂 %d 个'
         % (args.method, args.seeds, len(paths)))

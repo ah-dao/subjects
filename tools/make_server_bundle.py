@@ -49,11 +49,11 @@ SLIM_UNITS = ['slope_units_final.shp', 'slope_units_final.shx', 'slope_units_fin
               'slope_units_final_train.dbf', 'slope_units_final_train.prj',
               'slope_units_final_train.cpg',
               'slope_units_final_count.csv', 'slope_units_final_train_count.csv']
-SLIM_WHEELS = ['tabpfn-8.5.0-py3-none-any.whl', 'tabpfn-2.1.4-py3-none-any.whl']
+SLIM_WHEELS = ['tabpfn-8.5.0-py3-none-any.whl', 'tabpfn-2.1.4-py3-none-any.whl']  # 纯 Python，跨平台
 SKIP_DIRS = {'__pycache__', '.git', 'archive', 'dist', '.deps', '.deps2', '_archive'}
 
 
-def add_path(zf, rel, optional=False, pick=None):
+def add_path(zf, rel, optional=False, pick=None, skip=None):
     p = os.path.join(ROOT, rel.replace('/', os.sep))
     if not os.path.exists(p):
         print('  %-56s %s' % (rel, '（跳过：不存在）' if optional else '⚠ 缺失'))
@@ -70,14 +70,21 @@ def add_path(zf, rel, optional=False, pick=None):
                     continue
                 if pick is not None and f not in pick:
                     continue
+                if skip is not None and skip(f):
+                    continue
                 full = os.path.join(dirpath, f)
                 zf.write(full, os.path.relpath(full, ROOT).replace(os.sep, '/'))
                 n += 1
     sz = sum(os.path.getsize(os.path.join(dp, f)) for dp, _, fs in os.walk(p)
-             for f in fs if (pick is None or f in pick)) \
+             for f in fs if (pick is None or f in pick) and not (skip and skip(f))) \
         if os.path.isdir(p) else os.path.getsize(p)
     print('  %-56s %5d 个文件 %8.1f MB' % (rel, n, sz / 1e6))
     return n
+
+
+def _win_only_wheel(f):
+    """Windows 专用 wheel（Linux 服务器装不上，不必进瘦身包）。"""
+    return f.endswith('.whl') and ('win_amd64' in f or 'win32' in f or 'cp310' in f)
 
 
 def setup_md(with_terrain, with_gee, slim=False):
@@ -384,6 +391,45 @@ python tills/v2_model_mil.py --bags features/v2/unit_bags.npz \\
 
 > ⚠ M2 的验收标准（§0）与 M3 相同：Δ 必须超过该口径 MDE、两分折同号；
 > 且主战场是**消落带内子集 AUC**（该子集 MDE=0.0069，比全库更大，需要 `--seeds` 提高重复次数）。
+
+## 9. 模型侧新内容（N1 集成 / N3 压检出限 / 指标复核）
+
+这三步都**不动主线**，产出的是可汇报/可写论文的方法学结果。按顺序跑：
+
+```bash
+export HF_HUB_OFFLINE=1
+
+# ① N1：导出 TabPFN 的逐单元 OOF 概率（集成 + 不确定性图的前提；约 5 分钟/分折）
+#    产物 results/runs/tabpfn_oof.csv（unit_id,label,p_tabpfn,p_tabpfn_sd）
+python -u baseline_tabpfn.py --features-csv features/v2/features_v2_train_38.csv \\
+    --method spatial_kmeans --context soft --neg-lam 0.2 --neg-km 4.0 \\
+    --max-train 12000 --seeds 3 --save-oof results/runs/tabpfn_oof_spatial.csv
+python -u baseline_tabpfn.py --features-csv features/v2/features_v2_train_38.csv \\
+    --method admin --context soft --neg-lam 0.2 --neg-km 4.0 \\
+    --max-train 12000 --seeds 3 --save-oof results/runs/tabpfn_oof_admin.csv
+
+# ② N3 / T3：用 TabPFN 的置换零分布**压低检出限**（回答"地质 4 维到底是不是真的检不出"）
+#    7 臂 × 3 种子 × 5 折；soft 口径；每个分折约 25~35 分钟（3090）
+python -u tools/m3_t3_mde_tabpfn.py --method spatial_kmeans --seeds 3
+python -u tools/m3_t3_mde_tabpfn.py --method admin --seeds 3
+#    产物 results/t3_tabpfn_mde_<method>.txt/.json + t3_tabpfn_mde_summary.txt
+#    脚本会自己生成 features/v2/ablation_t3/*.csv（7 张 38 维表，约 92 MB，可随时删）
+
+# ③ 指标复核：面积-覆盖曲线（不需要 rasterio，纯 CSV 重算）
+python tools/m3_capture_curve.py
+```
+
+回传时**只需**（体积很小）：
+
+```bash
+tar czf t3_export_$(date +%m%d_%H%M).tgz \\
+    results/runs/tabpfn_oof_*.csv results/t3_tabpfn_mde_*.txt \\
+    results/t3_tabpfn_mde_*.json results/t3_tabpfn_mde_summary.txt \\
+    results/capture_curve.* results/runs/tabpfn/*.json
+```
+
+> 若 T3 想先看单臂效果再决定是否跑满：`--arms base34,sel4,null1` 可只跑 3 臂（约 15 分钟）。
+> 零分布重复次数可用 `--nulls N` 调整（默认 5；n 个置换的 SD 估计相对误差约 1/√(2(n−1))）。
 """
 
 
@@ -403,7 +449,8 @@ def main():
     print('打包 -> %s%s' % (out, '（瘦身模式）' if args.slim else ''))
     with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
         for rel in CODE:
-            add_path(zf, rel, pick=(SLIM_WHEELS if (args.slim and rel == 'tools') else None))
+            # 瘦身包：tools/ 保留全部脚本（205 KB），只剔掉 Windows 专用 wheel
+            add_path(zf, rel, skip=_win_only_wheel if (args.slim and rel == 'tools') else None)
         for rel in CODE_FILES:
             add_path(zf, rel, optional=True)
         for rel, _desc, opt, slim in DATA:
