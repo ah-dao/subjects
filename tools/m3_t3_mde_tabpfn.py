@@ -79,16 +79,21 @@ def build_arms(n_null=None):
     return paths
 
 
-def run_arm(path, method, seeds, tag):
+def run_arm(path, method, seeds, tag, max_train=12000, n_est=None, device=None):
     before = set(glob.glob(os.path.join(RES, 'runs', 'tabpfn', '*.json')))
     old = sys.argv
     out = None
-    sys.argv = ['baseline_tabpfn.py', '--features-csv', path, '--method', method,
-                '--context', 'soft', '--neg-lam', '0.2', '--neg-km', '4.0',
-                '--max-train', '12000', '--seeds', str(seeds),
-                # 7 个臂的 dims 有重复（5 个零分布臂都是 38 维）→ 必须加后缀，
-                # 否则同名 JSON 互相覆盖，后续臂会被误判为"未产生结果"
-                '--tag-suffix', 't3_%s_%s' % (tag, method)]
+    argv = ['baseline_tabpfn.py', '--features-csv', path, '--method', method,
+            '--context', 'soft', '--neg-lam', '0.2', '--neg-km', '4.0',
+            '--max-train', str(max_train), '--seeds', str(seeds),
+            # 7 个臂的 dims 有重复（5 个零分布臂都是 38 维）→ 必须加后缀，
+            # 否则同名 JSON 互相覆盖，后续臂会被误判为"未产生结果"
+            '--tag-suffix', 't3_%s_%s' % (tag, method)]
+    if n_est:
+        argv += ['--n-estimators', str(n_est)]
+    if device:
+        argv += ['--device', device]
+    sys.argv = argv
     try:
         import contextlib
         import io
@@ -126,12 +131,19 @@ def main():
     ap.add_argument('--seeds', type=int, default=3)
     ap.add_argument('--arms', default='', help='只跑指定臂（逗号分隔，便于分批）')
     ap.add_argument('--nulls', type=int, default=N_NULL, help='置换零分布重复次数（默认 5）')
+    ap.add_argument('--max-train', type=int, default=12000,
+                    help='TabPFN 上下文上限；**8 GB 显存请用 6000**（12k 需 ≥16 GB）')
+    ap.add_argument('--n-estimators', type=int, default=None,
+                    help='TabPFN 内部集成数（默认库默认；显存/时间紧张时设 4）')
+    ap.add_argument('--device', default=None, help='默认自动；显式 cuda / cpu')
     ap.add_argument('--dry-run', action='store_true')
     args = ap.parse_args()
     os.makedirs(RES, exist_ok=True)
     paths = build_arms(args.nulls)
     log('T3：TabPFN 置换零分布 → 新 MDE | 分折 %s | 每臂 %d 种子 × 5 折 | 臂 %d 个'
         % (args.method, args.seeds, len(paths)))
+    log('  上下文上限 %d（8 GB 显存用 6000）| 集成数 %s | 设备 %s'
+        % (args.max_train, args.n_estimators or '默认', args.device or '自动'))
     log('  臂：%s' % ', '.join(paths))
     if args.dry_run:
         log('  [dry-run] 特征表已生成于 %s，未运行模型' % AD)
@@ -143,7 +155,8 @@ def main():
         return
     out = {}
     for tag in want:
-        j = run_arm(paths[tag], args.method, args.seeds, tag)
+        j = run_arm(paths[tag], args.method, args.seeds, tag, args.max_train,
+                    args.n_estimators, args.device)
         if j is None:
             log('  %-8s 未产生结果（检查上面的 baseline 输出）' % tag)
             continue

@@ -103,9 +103,9 @@ def holm(pvals):
     return out
 
 
-def run_xgb(reps):
+def run_xgb(reps, csv_path=None):
     from scipy import stats
-    d = pd.read_csv(CSV, encoding='utf-8-sig')
+    d = pd.read_csv(csv_path or CSV, encoding='utf-8-sig')
     log('=' * 112)
     log('【XGB】第 10 轮缓存的两向方差分解（种子 × 置换）')
     log('  %-9s %-15s %-10s %9s %9s %9s %8s  %s'
@@ -209,10 +209,11 @@ def run_tabpfn(tag):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--reps', type=int, default=5)
+    ap.add_argument('--csv', default=None, help='替换 XGB 结果 CSV（如加长置换后的复核结果）')
     ap.add_argument('--tabpfn-tag', default='locprobe')
     ap.add_argument('--no-tabpfn', action='store_true')
     args = ap.parse_args()
-    r1 = run_xgb(args.reps)
+    r1 = run_xgb(args.reps, args.csv)
     r2 = None if args.no_tabpfn else run_tabpfn(args.tabpfn_tag)
 
     log('')

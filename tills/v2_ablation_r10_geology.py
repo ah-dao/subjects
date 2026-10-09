@@ -120,6 +120,13 @@ NULL_REPS = 5
 # 真实臂 -> 与之同列数的零分布档
 NULL_FOR = {k: k for k in ARMS if k != 'base34'}
 NULL_FOR['base34'] = None
+# ---- 可覆盖的运行配置（由 main() 的命令行参数设置；默认 = 第 10 轮原口径）----
+REPS = NULL_REPS
+RUN_ARMS = list(ARMS.keys())
+JSDIR = JSONDIR          # 逐次运行 JSON 的实际落盘目录（main() 可覆盖，run_one 必须用同一个）
+OUT_CSV = os.path.join(RES, 'v2_ablation_r10_geology.csv')
+OUT_TXT = os.path.join(RES, 'v2_ablation_r10_geology.txt')
+CKPT = os.path.join(RES, 'v2_ablation_r10_geology.json')
 MODES = {
     'soft02': ['--neg-sampling', 'soft', '--neg-lam', '0.2'],
     'matched5': ['--neg-sampling', 'matched', '--neg-k', '5', '--match-far-frac', '0.0'],
@@ -134,8 +141,13 @@ def log(s=''):
 
 
 # ---------------------------------------------------------------- 建臂
-def build_tables():
-    """生成 11 个真实臂 + 6 档 x 8 重复的置换臂 CSV, 返回 {臂名: 文件路径}。"""
+def build_tables(arms_wanted=None, reps=None):
+    """生成真实臂 + 置换臂 CSV, 返回 {臂名: 文件路径}。
+
+    arms_wanted: 只**写盘**这些臂（含它们的置换臂）；其余臂仍然消耗 RNG 抽取，
+                 以保证置换序列与第 10 轮一致 —— 于是 r00..r04 与第 10 轮逐字节相同，
+                 新增的 r05.. 是对同一零分布的**加长**而非替换。
+    """
     tr = pd.read_csv(TRAIN_CSV)
     base_cols = [c for c in tr.columns if c not in ('unit_id', 'label')]
     need = sorted({c for cols in list(ARMS.values()) + list(NULLS.values()) for c in cols})
@@ -160,15 +172,21 @@ def build_tables():
 
     paths = {}
     full = pd.concat([tr[['unit_id'] + base_cols + ['label']], aux[need]], axis=1)
+    want = set(arms_wanted or ARMS.keys()) | {'base34'}
+    reps = reps or NULL_REPS
     for arm, cols in ARMS.items():
+        if arm not in want:
+            continue
         p = os.path.join(AD, 'r10_%s.csv' % arm)
         full[['unit_id'] + base_cols + cols + ['label']].to_csv(p, index=False)
         paths[arm] = p
     rng = np.random.default_rng(20260920)
     n = len(full)
     for name, cols in NULLS.items():
-        for rep in range(NULL_REPS):
-            perm = rng.permutation(n)
+        for rep in range(reps):
+            perm = rng.permutation(n)            # ⚠ 必须对**所有臂**抽取，否则序列错位
+            if name not in want:
+                continue
             d = full[['unit_id'] + base_cols + ['label']].copy()
             for c in cols:                       # 整块行置换: 边际分布不变, 只打断与标签的关联
                 d[c] = full[c].values[perm]
@@ -189,7 +207,7 @@ def run_one(arm, mode, foldm, seed):
         tag += '_soft0.2'
     else:
         tag += '_mt5f0'
-    out_json = os.path.join(JSONDIR, 'baseline_xgb%s.json' % tag)
+    out_json = os.path.join(JSDIR, 'baseline_xgb%s.json' % tag)
     old = sys.argv
     sys.argv = ['baseline_xgb.py', '--features-csv', csv_p, '--method', foldm,
                 '--seed', str(seed), *COMMON, *MODES[mode]]
@@ -217,34 +235,66 @@ def run_one(arm, mode, foldm, seed):
 
 
 def main():
-    global RUN_FILES
+    global RUN_FILES, RUN_ARMS, REPS, OUT_CSV, OUT_TXT, CKPT, JSDIR
     ap = argparse.ArgumentParser()
     ap.add_argument('--calibers', default='soft02,matched5')
+    ap.add_argument('--arms', default='', help='只跑这些真实臂（逗号分隔）；默认全部 11 个')
+    ap.add_argument('--null-reps', type=int, default=NULL_REPS, help='每臂置换重复次数（默认 5）')
+    ap.add_argument('--json-dir', default=JSONDIR, help='逐次运行 JSON 的落盘目录')
+    ap.add_argument('--out-suffix', default='', help='结果文件名后缀，避免覆盖第 10 轮原结果')
+    ap.add_argument('--reuse-csv', default='',
+                    help='已算过的结果 CSV（如第 10 轮原结果）：命中 (臂,口径,分折,种子) 的运行直接复用，不重算')
     ap.add_argument('--smoke', action='store_true', help='冒烟: 3 臂 x 1 档零 x 1 折 x 1 种子')
     args = ap.parse_args()
 
-    os.makedirs(JSONDIR, exist_ok=True)
-    RUN_FILES, base_cols, n_units = build_tables()
-    cfg.RESULT_DIR = __import__('pathlib').Path(JSONDIR)   # baseline_xgb 的 JSON 落盘目录
+    ARMS_W = [a.strip() for a in args.arms.split(',') if a.strip()] or list(ARMS.keys())
+    if 'base34' not in ARMS_W:
+        ARMS_W = ['base34'] + ARMS_W
+    RUN_ARMS, REPS = ARMS_W, args.null_reps
+    OUT_CSV = os.path.join(RES, 'v2_ablation_r10_geology%s.csv' % args.out_suffix)
+    OUT_TXT = os.path.join(RES, 'v2_ablation_r10_geology%s.txt' % args.out_suffix)
+    CKPT = os.path.join(RES, 'v2_ablation_r10_geology%s.json' % args.out_suffix)
+
+    os.makedirs(args.json_dir, exist_ok=True)
+    JSDIR = args.json_dir
+    RUN_FILES, base_cols, n_units = build_tables(ARMS_W, args.null_reps)
+    cfg.RESULT_DIR = __import__('pathlib').Path(args.json_dir)   # baseline_xgb 的 JSON 落盘目录
     log('特征臂 %d 个 / 置换零 %d 档 x %d 重复 / 单元 %d' %
-        (len(ARMS), len(NULLS), NULL_REPS, n_units))
+        (len(ARMS_W), len(ARMS_W) - 1, args.null_reps, n_units))
     log('基线列(34): %s' % ','.join(base_cols))
+    log('落盘: %s | %s' % (os.path.basename(OUT_CSV), args.json_dir))
     log('')
 
-    order = list(ARMS.keys()) + ['null_%s_r%02d' % (k, r) for k in NULLS for r in range(NULL_REPS)]
-    rows, ckpt = [], os.path.join(RES, 'v2_ablation_r10_geology.json')
+    order = list(ARMS_W) + ['null_%s_r%02d' % (k, r) for k in ARMS_W if k != 'base34'
+                            for r in range(args.null_reps)]
+    rows, ckpt = [], CKPT
     calibers = [c for c in args.calibers.split(',') if c]
     seeds, folds = SEEDS, FOLDS
     if args.smoke:
         order = ['base34', 'sel4', 'null_sel4_r00']
         calibers, seeds, folds = calibers[:1], SEEDS[:1], FOLDS[:1]
     total = len(calibers) * len(folds) * len(seeds) * len(order)
-    k = 0
+    reuse = {}
+    if args.reuse_csv and os.path.exists(args.reuse_csv):
+        rd = pd.read_csv(args.reuse_csv, encoding='utf-8-sig')
+        for x in rd.itertuples():
+            reuse[(x.arm, x.mode, x.fold, int(x.seed))] = x
+        log('复用已算结果 %d 条（%s）' % (len(reuse), os.path.basename(args.reuse_csv)))
+    k = n_reuse = 0
     for mode in calibers:
         for foldm in folds:
             for arm in order:
                 for seed in seeds:
                     k += 1
+                    key = (arm, mode, foldm, int(seed))
+                    if key in reuse:
+                        x = reuse[key]
+                        rows.append({'arm': arm, 'mode': mode, 'fold': foldm, 'seed': int(seed),
+                                     'auc': x.auc, 'pool': x.pool, 'recall': x.recall,
+                                     'conf_auc': x.conf_auc, 'n_train': x.n_train,
+                                     'gap_fn': 0.0})
+                        n_reuse += 1
+                        continue
                     try:
                         r = run_one(arm, mode, foldm, seed)
                     except Exception as e:                      # 单次失败不中断整轮
@@ -259,13 +309,12 @@ def main():
                             % (k, total, arm, foldm, seed, r['auc'], r['pool'],
                                (' | 混杂 %.4f' % r['conf_auc']) if np.isfinite(r['conf_auc']) else ''))
                     if k % 24 == 0:
-                        pd.DataFrame(rows).to_csv(os.path.join(RES, 'v2_ablation_r10_geology.csv'),
-                                                  index=False, encoding='utf-8-sig')
+                        pd.DataFrame(rows).to_csv(OUT_CSV, index=False, encoding='utf-8-sig')
                         with open(ckpt, 'w', encoding='utf-8') as f:
                             json.dump(rows, f, ensure_ascii=False, indent=1)
 
     df = pd.DataFrame(rows)
-    df.to_csv(os.path.join(RES, 'v2_ablation_r10_geology.csv'), index=False, encoding='utf-8-sig')
+    df.to_csv(OUT_CSV, index=False, encoding='utf-8-sig')
     with open(ckpt, 'w', encoding='utf-8') as f:
         json.dump(rows, f, ensure_ascii=False, indent=1)
 
@@ -283,7 +332,7 @@ def main():
         log('【%s】绝对表现(3 seeds 均值)与置换零分布' % mode.upper())
         log('%-22s %-16s %9s %9s %6s | %9s %9s %8s %7s %7s' %
             ('特征臂', '分折', '全局AUC', '池内AUC', '列数', '零均值', '零标准差', 'gap', 'z', '经验p'))
-        for arm in ARMS:
+        for arm in RUN_ARMS:
             for foldm in FOLDS:
                 a = sub[(sub['arm'] == arm) & (sub['fold'] == foldm)]
                 if not len(a):
@@ -306,7 +355,7 @@ def main():
         log('')
         log('【%s】相对干净基线 base34 的增量(全局AUC / 池内AUC)' % mode.upper())
         log('%-22s %16s %16s' % ('特征臂', 'Δ全局(vs base34)', 'Δ池内(vs base34)'))
-        for arm in ARMS:
+        for arm in RUN_ARMS:
             if arm == 'base34':
                 continue
             cells = []
@@ -323,7 +372,7 @@ def main():
     log('%-22s %-16s %8s %7s %s' % ('特征臂', '分折', 'gap', 'z', '结论'))
     for mode in calibers:
         sub = df[df['mode'] == mode]
-        for arm in ARMS:
+        for arm in RUN_ARMS:
             nc = NULL_FOR[arm]
             if nc is None:
                 continue
@@ -338,7 +387,7 @@ def main():
                                                        '通过' if ok[-1] else '未通过'))
             log('%-22s %-16s %8s %7s %s' % ('', '', '', '', '两分折一致通过' if sum(ok) == 2 else '不一致/未通过'))
     log('')
-    open(os.path.join(RES, 'v2_ablation_r10_geology.txt'), 'w', encoding='utf-8').write(buf.getvalue())
+    open(OUT_TXT, 'w', encoding='utf-8').write(buf.getvalue())
     print('DONE')
 
 
