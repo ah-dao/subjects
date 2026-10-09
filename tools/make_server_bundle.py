@@ -439,6 +439,23 @@ tar czf t3_export_$(date +%m%d_%H%M).tgz \\
 
 > 若 T3 想先看单臂效果再决定是否跑满：`--arms base34,sel4,null1` 可只跑 3 臂（约 15 分钟）。
 > 零分布重复次数可用 `--nulls N` 调整（默认 5；n 个置换的 SD 估计相对误差约 1/√(2(n−1))）。
+> ⚠ T3 依赖 `baseline_tabpfn.py --tag-suffix`（7 个臂里 5 个零分布臂维数相同，不加后缀会互相覆盖
+> JSON，导致后 4 臂被误判为"未产生结果"）。若上传的是旧包，T3 会给出错误的零分布 —— 请用新包。
+
+## 10.（可选）T2：补上第三种口径，把"模型 × 人群"补成完整交叉表
+
+M3 已做 soft / matched 两种口径；补上 `full`（不加权全域）即可得到 **2 模型 × 3 口径**的完整交叉表，
+用于回答"TabPFN 的优势是否只在特定人群构造下成立"（评审最常问的稳健性问题）。约 1 小时。
+
+```bash
+for M in spatial_kmeans admin; do
+  python baseline_xgb.py    --features-csv features/v2/features_v2_train_38.csv \\
+      --method $M --neg-sampling none --seed 42
+  python baseline_tabpfn.py --features-csv features/v2/features_v2_train_38.csv \\
+      --method $M --context full --seeds 3
+done
+# 对照：python tools/paired_compare.py xgb_full=<json> tabpfn_full=<json>
+```
 """
 
 

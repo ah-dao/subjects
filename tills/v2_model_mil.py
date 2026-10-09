@@ -194,6 +194,9 @@ def prepare(args):
 
     # ---- 分折（与 baseline 完全一致）----
     cent_utm = load_centroids_utm(study_shp_path())
+    if len(cent_utm) != len(y):
+        raise SystemExit('[错误] shp 人群(%d)与特征表(%d)不一致 → 折位会错配，先核对人群口径'
+                         % (len(cent_utm), len(y)))
     if args.method == 'admin':
         fold_id = admin_folds(COUNTY_UNITS_CSV, unit_id, y, n_folds=args.folds)
     elif args.method == 'spatial_kmeans':

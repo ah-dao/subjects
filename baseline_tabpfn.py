@@ -1,4 +1,4 @@
-﻿"""
+"""
 TabPFN v2 基线（表格基础模型线：与 baseline_xgb.py **同口径**对照）。
 
 2026-10 改版要点（v2 主线）：
@@ -79,6 +79,8 @@ def main():
     ap.add_argument('--smoke', action='store_true', help='冒烟：1 折 1 种子 + 小上下文')
     ap.add_argument('--save-oof', default='',
                     help='逐单元 OOF 概率写到该 CSV（用于集成/校准/共形预测）；多种子时同时给种子间标准差作为单元级不确定性')
+    ap.add_argument('--tag-suffix', default='',
+                    help='结果文件名后缀（如 T3 的多臂扫描需要各自独立落盘，否则同名 JSON 互相覆盖）')
     args = ap.parse_args()
 
     csv_path = Path(args.features_csv) if args.features_csv else (
@@ -308,6 +310,9 @@ def main():
     tag += f'_{X.shape[1]}d_s{args.seeds}'
     if args.smoke:
         tag += '_smoke'
+    if args.tag_suffix:                     # 多臂扫描（如 T3 的 7 臂）必须各自独立
+        _suf = ''.join(c for c in args.tag_suffix if c.isalnum() or c in '._-')
+        tag += '_' + _suf
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
     out = RUNS_DIR / f'baseline_tabpfn{tag}.json'
     with open(out, 'w', encoding='utf-8') as f:

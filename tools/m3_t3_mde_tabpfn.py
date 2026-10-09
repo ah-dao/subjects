@@ -85,7 +85,10 @@ def run_arm(path, method, seeds, tag):
     out = None
     sys.argv = ['baseline_tabpfn.py', '--features-csv', path, '--method', method,
                 '--context', 'soft', '--neg-lam', '0.2', '--neg-km', '4.0',
-                '--max-train', '12000', '--seeds', str(seeds)]
+                '--max-train', '12000', '--seeds', str(seeds),
+                # 7 个臂的 dims 有重复（5 个零分布臂都是 38 维）→ 必须加后缀，
+                # 否则同名 JSON 互相覆盖，后续臂会被误判为"未产生结果"
+                '--tag-suffix', 't3_%s_%s' % (tag, method)]
     try:
         import contextlib
         import io
@@ -100,6 +103,12 @@ def run_arm(path, method, seeds, tag):
     finally:
         sys.argv = old
     new = set(glob.glob(os.path.join(RES, 'runs', 'tabpfn', '*.json'))) - before
+    suf = 't3_%s_%s' % (tag, method)
+    mine = [p for p in glob.glob(os.path.join(RES, 'runs', 'tabpfn', '*.json')) if suf in p]
+    if mine:                                    # 按后缀精确定位（唯一）
+        j = json.load(open(max(mine, key=os.path.getmtime), encoding='utf-8'))
+        j['_tag'] = tag
+        return j
     if not new:
         tail = [l for l in (out.getvalue() if out else '').splitlines() if l.strip()][-12:]
         log('  [%s] 未产生 JSON，baseline 末尾输出：' % tag)
