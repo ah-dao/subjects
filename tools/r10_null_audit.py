@@ -58,8 +58,11 @@ def main():
 
     d = pd.read_csv(args.csv, encoding='utf-8-sig')
     arms = [a for a in d['arm'].unique() if not a.startswith('null_')]
-    log('第 10 轮零分布口径审计 | 运行 %d 行 | 真实臂 %d 个 | 置换 %d 次 × 3 种子'
-        % (len(d), len(arms), args.reps))
+    n_perm = int(d[d['arm'].str.startswith('null_')]['arm'].str[-2:].astype(int).max()) + 1
+    log('第 10 轮零分布口径审计')
+    log('  输入: %s（%d 行 | 真实臂 %d 个 | 置换 %d 档 × 种子 %d 个）'
+        % (os.path.basename(args.csv), len(d), len(arms), n_perm, d['seed'].nunique()))
+    log('  ⚠ 写明输入文件，避免"5 次置换原版"与"20 次置换复核版"的结果互相混淆')
     log('=' * 112)
     log('【A】先复现第 10 轮的口径层面零SD（应与其 summary 表 A 一致：soft02 0.0010/0.0017，matched5 0.0033/0.0041）')
     log('  %-9s %-15s %10s %12s %12s' % ('口径', '分折', '零SD(RMS)', 'MDE=1.96SD', '零分布极差'))
@@ -125,6 +128,7 @@ def main():
     r = pd.DataFrame(rows)
     # ---- 多重比较：在每个 (口径, 分折) 家族内做 Holm 校正 ----
     r['p_holm'] = np.nan
+    r['family_m'] = np.nan
     for (mode, foldm), idx in r.groupby(['mode', 'fold']).groups.items():
         g = r.loc[idx].sort_values('p')
         m = len(g)
@@ -135,17 +139,22 @@ def main():
             adj.append(v)
             prev = v
         r.loc[g.index, 'p_holm'] = adj
+        r.loc[g.index, 'family_m'] = m
     r['detected_holm'] = (r['p_holm'] < 0.05) & (r['gap'].abs() > r['mde_mean'])
     log('')
     log('=' * 112)
-    log('【C】结论对照（Holm 校正后，家族 = 同一口径×同一分折下的 10 个臂）')
+    log('【C】结论对照（Holm 校正后）')
+    log('  ⚠ 家族定义 = **本 CSV 里出现的臂数**。只跑单个臂时 family_m=1 → Holm 不校正，')
+    log('    此时"显著"只代表**未校正的单一假设**结果；若按第 10 轮"10 个臂一起测"的家族，')
+    log('    p_holm ≈ 10×p。两种口径都要在论文里写明，不要只报对自己有利的那个。')
     log('  第 10 轮原判定：两套口径下无任何臂通过（gap>0.003 且 z>1.5 且两分折同号）')
     sig = r[r['detected_holm']]
     for mode in ['soft02', 'matched5']:
         g = sig[sig['mode'] == mode]
         names = sorted(set(g['arm']))
         both = sorted({a for a in names if g[g['arm'] == a]['fold'].nunique() >= 2})
-        log('  %-9s 校正后显著：%s' % (mode, ', '.join(names) if names else '无'))
+        fam = sorted(set(r[r['mode'] == mode]['family_m'].dropna().astype(int)))
+        log('  %-9s 校正后显著：%s（家族臂数 m=%s）' % (mode, ', '.join(names) if names else '无', fam))
         log('  %-9s **两套分折都显著**：%s' % ('', ', '.join(both) if both else '无'))
     for a in sorted(set(r['arm'])):
         gg = r[(r['arm'] == a) & (r['p_holm'] < 0.05)]
