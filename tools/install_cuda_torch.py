@@ -54,7 +54,12 @@ def wheel_name(ver):
 
 
 def check():
-    sys.path.insert(0, TARGET)
+    # ⚠ 必须清掉已缓存的 torch：本函数会在"安装前/安装后"各调用一次，
+    #   同一进程里第一次已把 CPU 版 torch 载入 sys.modules，不清就会一直读到旧的那个。
+    for m in [k for k in list(sys.modules) if k == 'torch' or k.startswith('torch.')]:
+        del sys.modules[m]
+    if TARGET not in sys.path:
+        sys.path.insert(0, TARGET)
     try:
         import torch
     except Exception as e:

@@ -81,7 +81,21 @@ def main():
                     help='逐单元 OOF 概率写到该 CSV（用于集成/校准/共形预测）；多种子时同时给种子间标准差作为单元级不确定性')
     ap.add_argument('--tag-suffix', default='',
                     help='结果文件名后缀（如 T3 的多臂扫描需要各自独立落盘，否则同名 JSON 互相覆盖）')
+    ap.add_argument('--batched-test-rows', type=int, default=0,
+                    help='8 GB 显存必设：TabPFN 测试集分块行数（相当于设 TABPFN_MAX_BATCHED_TEST_ROWS）。'
+                         '不设时 TabPFN 会把 集成数×测试行数 一起塞进注意力矩阵 -> 显存爆炸')
+    ap.add_argument('--fit-mode', default='',
+                    help='TabPFN fit_mode：low_memory / fit_preprocessors / fit_with_cache。'
+                         '8 GB 显存建议 fit_with_cache（配合 --batched-test-rows 才生效）')
     args = ap.parse_args()
+
+    # 显存相关：必须在 import tabpfn 之前设好（tabpfn 在首次建模时读这些变量）
+    if args.batched_test_rows > 0:
+        os.environ['TABPFN_MAX_BATCHED_TEST_ROWS'] = str(args.batched_test_rows)
+        print(f'[显存] 测试集分块 {args.batched_test_rows} 行/块'
+              f'（TABPFN_MAX_BATCHED_TEST_ROWS={args.batched_test_rows}）')
+    if args.device != 'cpu':
+        os.environ.setdefault('PYTORCH_CUDA_ALLOC_CONF', 'expandable_segments:True')
 
     csv_path = Path(args.features_csv) if args.features_csv else (
         FEATURES_CSV_38 if Path(FEATURES_CSV_38).exists() else Path(EVENT_WINDOW_FEATURES_CSV))
@@ -228,6 +242,8 @@ def main():
                 kwargs['model_path'] = ckpt
             if args.n_estimators:
                 kwargs['n_estimators'] = args.n_estimators
+            if args.fit_mode:
+                kwargs['fit_mode'] = args.fit_mode          # 8 GB 显存：fit_with_cache + 测试分块
             cpu_large = (device == 'cpu' and len(keep) > 1000)
             kwargs['ignore_pretraining_limits'] = bool(args.ignore_limits or cpu_large
                                                        or len(keep) > 10000)
@@ -318,6 +334,10 @@ def main():
     with open(out, 'w', encoding='utf-8') as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
     print(f'\n===== TabPFN 汇总（{args.seeds} 种子 × {args.folds} 折，{args.context} 上下文）=====')
+    if device == 'cuda':
+        print('显存峰值: 已分配 %.2f GB | 保留 %.2f GB | 卡总量 %.2f GB'
+              % (torch.cuda.max_memory_allocated() / 1e9, torch.cuda.max_memory_reserved() / 1e9,
+                 torch.cuda.get_device_properties(0).total_memory / 1e9))
     print(f'平均 AUC（全单元）: {result["mean_auc"]:.4f} ± {result["std_auc"]:.4f}')
     print(f'平均 AUC（采样池）: {result["mean_auc_pool"]:.4f} ± {result["std_auc_pool"]:.4f}')
     print(f'recall@Top10%     : {result["mean_recall"]:.4f}')
