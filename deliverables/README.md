@@ -34,32 +34,11 @@
 | `features_v2_train_48_中文表头.csv` | 同上，列名改为中文（数值与英文版逐位相同） | 25,509 × 50 |
 | `表头对照_中英.csv` / `表头说明.csv` | 中英表头对照 / 数据字典（中文名称 + 计算方法） | — |
 | **`列状态_保留与弃用.csv`** | **逐列状态（主线输入 / 解释图层 / 已弃用）+ 依据** | 50 行 |
-| **`landslides_v2_38.csv`** | **外部滑坡清单 × 38 维主线（见 §8）**：`Id` + `unit_id` + `label` + 38 特征 | 133 × 47 |
-| `landslides_v2_38_full.csv` | 同上，另保留滑坡清单原有 36 列（`ls_area` 为重名列加前缀） | 133 × 80 |
 | `README.md` | 本文件 | — |
 
----
-
-## 8. 外部滑坡清单（`features/other/landslides.xlsx`）的 38 维对接
-
-外部滑坡清单（133 行 × 36 列）的键列 **`Id` 是项目最初版斜坡单元的 Id**，与 v2 的 `unit_id` 不同，
-需经 `features/v2/unit_id_map_v2.csv` 的 **`src_fixed_Id`** 列转换：
-
-```
-landslides.Id  ──(== src_fixed_Id)──▶  unit_id  ──▶  features_v2_train_38.csv 的 38 维
-```
-
-| 项 | 结果 |
-|---|---|
-| 命中率 | **133 / 133**（全部直接命中 `src_fixed_Id`，无一落在 `merged_from` 的合并情形） |
-| 人口归属 | 133 个 unit_id **全部** `is_train=1`（训练人口内，非河道内单元） |
-| 特征接入 | 133 / 133 行拿到完整 38 维，**0 个 NaN** |
-| 一致性校验 | 与全量表 `features_v2_38.csv` 的逐列最大差异 **0.00e+00** |
-| 新增列 | `label=1`（清单即已知滑坡）、`is_train` / `is_submerged` / `in_xiaoluoqu`（便于筛选） |
-
-生成脚本：`tools/extract_landslides_features.py`（可复现，含体检报告 `results/landslides_v2_38_report.txt`）。
-⚠ 两处口径提醒：① `Id` 与 `unit_id` **不是同一个编号体系**，下游务必用 `unit_id` 去连 shp/特征；
-② 本清单是**滑坡目录的子集**（133 个），不能当作完整正样本集使用（主线 `label` 有 661 个正样本）。
+> ⚠️ **已移除**：早先曾产出 `landslides_v2_38.csv`（由 `features/other/landslides.xlsx` 派生的外部滑坡清单对接表）。
+> 该外部清单来源不可解释、属汇报过程文件，**已整份停用**，相关表与脚本已删除。
+> 分层评价改用项目自身数据：`tools/drawdown_stratification.py` → `results/drawdown_stratification.txt`。
 
 ---
 
