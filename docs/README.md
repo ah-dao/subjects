@@ -21,14 +21,15 @@
 | 12 | `FEATURES_V2.md` | 34 维特征逐项定义与提取口径 | 现行 |
 | 13 | `NEW_FACTORS_V2.md` | 四类地质因子的早期消融（§3.3 的 9 列推荐集**已作废**） | 历史+标注 |
 | 14 | `负采样/依据清单.md` | 负采样/病例-对照的方法学依据（L1–L7） | 现行（部分待补） |
-| 15 | `脚本索引.md` | 全部脚本的一句话说明（自动生成） | 自动 |
+| 15 | `PROJECT_OVERVIEW.md` | v1 期项目总览；**`src/*.py` 的模块说明与 `FEATURES_V2.md` 仍引用它** | 历史+标注 |
+| 16 | `脚本索引.md` | 全部脚本的一句话说明（自动生成） | 自动 |
 
 ## 已归档（`archive/docs_history/`）
 
 | 文件 | 归档原因 |
 |---|---|
 | `文献查证档案_五轮.md` | 五轮文献查证的完整依据（邻近工作、判决表、已作废方向、找 niche 的方法）——**写作时引用，不必反复阅读** |
-| `EXPERIMENT_RESULTS.md` · `MODEL_UPGRADE_PLAN.md` · `PROJECT_OVERVIEW.md` · `QUICKSTART.md` · `SERVER_TRAIN.md` | v1/早期文档，已被现行文档取代（v1 结果整体作废） |
+| `EXPERIMENT_RESULTS.md` · `MODEL_UPGRADE_PLAN.md` · `QUICKSTART.md` · `SERVER_TRAIN.md` | v1/早期文档，已被现行文档取代（v1 结果整体作废；服务器流程见上传包 `SETUP.md`） |
 | `REPORT_V2_MIGRATION.md` · `GEE_UNIT_STATS_MONTH.md` | 迁移记录 / GEE 数据字典，属历史留档 |
 | `汇报_模型现状总览.md` · `汇报_模型现状总览_详细版.md` | 汇报文档重复，已收敛为 `docs/汇报_模型线阶段结果.md` |
 
