@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from test_controls import workspace_temp,FakeClassifier
 from src.v3.common import ROOT,seal
-from src.v3.explain84_canonical import run,audit,export
+from src.v3.explain84_canonical import run,audit,export,predict_in_original_batches
 from src.v3.fitted_store_canonical import inspect_archive,OfficialCodec,commit,load_checked
 
 
@@ -37,6 +37,29 @@ class StatefulCodec:
 
 
 class SavedTests(unittest.TestCase):
+    def test_original_batch_layout_preserves_subset_and_perturbation_positions(self):
+        from src.v3.train import predict
+        class BatchSensitiveModel:
+            classes_ = np.array([0, 1])
+            def predict_proba(self, x):
+                p = .3 + .001*x[:, 0] + .00003*np.arange(len(x)) + .00001*len(x)
+                return np.column_stack([1-p, p])
+        model = BatchSensitiveModel()
+        full = np.arange(38, dtype=np.float32).reshape(19, 2)
+        before = full.copy()
+        positions = np.array([18, 2, 9, 0, 15])
+        values = full[positions].copy()
+        expected = predict(model, full, 8)[positions]
+        self.assertGreater(np.max(np.abs(predict(model, values, 8)-expected)), 2e-5)
+        np.testing.assert_array_equal(predict_in_original_batches(model, full, positions, values, 8), expected)
+        values[:, 0] += 2
+        changed = full.copy(); changed[positions] = values
+        np.testing.assert_array_equal(predict_in_original_batches(model, full, positions, values, 8), predict(model, changed, 8)[positions])
+        np.testing.assert_array_equal(full, before)
+        np.testing.assert_array_equal(predict_in_original_batches(model, full, positions[:0], values[:0], 8), np.array([]))
+        with self.assertRaises(ValueError):
+            predict_in_original_batches(model, full, np.array([2, 2]), values[:2], 8)
+
     def test_roundtrip_difference_is_reported_but_independent_loads_must_match(self):
         from src.v3.common import sha
         class RoundtripCodec(StatefulCodec):
@@ -86,6 +109,18 @@ class SavedTests(unittest.TestCase):
                 self.assertTrue((args.out/name/'BASELINE.json').exists())
                 self.assertFalse((args.out/name/'feature00').exists())
                 meta=json.loads((b.parent/'identity.json').read_text());self.assertIn('recovered_from',meta)
+            # The reported failure occurs after MODEL is committed and before
+            # sampled BASELINE is sealed. Such canonical stores are recoverable.
+            partial=args.out
+            (partial/'spatial_fold1_seed42/BASELINE.json').unlink()
+            original={p.relative_to(partial).as_posix():sha(p) for p in partial.rglob('*') if p.is_file()}
+            args.out=temp/'canonical_recovered';args.recover_from=partial
+            run(args,factory,versions={'test':'cpu'},model_codec=codec)
+            self.assertEqual(len(calls),count)
+            for name,digest in original.items():self.assertEqual(sha(partial/name),digest)
+            for fold in range(5):
+                name=f'spatial_fold{fold}_seed42/fitted_model/model.tabpfn_fit'
+                self.assertEqual(sha(partial/name),sha(args.out/name))
 
     def test_actual_new_process_loads_state_without_fit_and_rejects_wrong_binding(self):
         import subprocess

@@ -25,6 +25,27 @@ def sources():
 def protocols(name): return ['spatial', 'admin'] if name == 'both' else [name]
 
 
+PREDICTION_POLICY = 'original_fullfold_batches_v1'
+
+
+def predict_in_original_batches(model, full_x, positions, values, batch):
+    """Replace selected rows without changing their query-batch size or position."""
+    positions = np.asarray(positions)
+    if (positions.ndim != 1 or positions.dtype.kind not in 'iu'
+        or len(np.unique(positions)) != len(positions)
+        or values.shape != (len(positions), full_x.shape[1]) or batch < 1
+        or (positions < 0).any() or (positions >= len(full_x)).any()):
+        raise ValueError('Invalid original-batch prediction request')
+    result = np.empty(len(positions), dtype=float)
+    for start in np.unique((positions//batch)*batch):
+        selected = np.flatnonzero((positions >= start) & (positions < start+batch))
+        query = full_x[start:start+batch].copy()
+        local = positions[selected]-start
+        query[local] = values[selected]
+        result[selected] = base.predict(model, query, batch)[local]
+    return result
+
+
 def atomic_npz(path, **values):
     temp = path.with_suffix('.tmp')
     with temp.open('wb') as f: np.savez_compressed(f, **values)
@@ -44,6 +65,7 @@ def _run(args, model_factory, versions, model_codec):
         max_per_fold=args.max_per_fold, min_cell=8, sample_rule='same uniform heldout IDs as prior V3 grouped explanation',
         effect_edges='training-context P5/P20/P40/P60/P80/P95; <=5 distinct levels use all levels',
         parameters=dict(context=4000, n_estimators=2, fit_mode='fit_preprocessors', predict_batch=args.predict_batch, device=args.device),
+        prediction_policy=PREDICTION_POLICY,
         sources=sources(), versions=versions, injected_test_predictor=injected,
         checkpoint_sha256=sha(args.model_path), features_sha256=sha(args.features/'manifest.json'),
         contexts_sha256=sha(args.contexts), reference_sha256=sha(REFERENCE/'manifest.json'),
@@ -115,7 +137,16 @@ def _run(args, model_factory, versions, model_codec):
                 stability = {k:arrays[k] for k in ['first_fit','first_repeat','final_repeat']}
                 sub = subset_indices(len(test), args.max_per_fold, protocol, fold)
                 baseline = full_baseline[sub]
-                checked_max(base.predict(model, x, args.predict_batch), baseline)
+                original_test_x = xx[test]
+                sampled = predict_in_original_batches(model, original_test_x, sub, x, args.predict_batch)
+                try:
+                    checked_max(sampled, baseline)
+                except ValueError as exc:
+                    atomic_npz(job/'reload_failure.npz', unit_id=d['unit_id'][take],
+                        baseline=baseline, original_batch_prediction=sampled)
+                    write_json(job/'reload_failure.json', dict(stage='original_batch_subset',
+                        error=str(exc), threshold=TOLERANCE, prediction_policy=PREDICTION_POLICY))
+                    raise
                 print('MODEL LOADED AND VERIFIED', protocol, fold, flush=True)
                 expected = ref[ref.protocol.eq(protocol)].set_index('unit_id').loc[d['unit_id'][take], 'p'].to_numpy()
                 error = float(np.max(np.abs(baseline-expected)))
@@ -156,14 +187,16 @@ def _run(args, model_factory, versions, model_codec):
                             order = donor_order(len(take), fold, repeat, strata if mode == 'terrain' else None, 8)
                             changed = x.copy(); changed[:, j] = x[order, j]
                             orders[repeat] = order
-                            destination[repeat] = base.predict(model, changed, args.predict_batch)
+                            destination[repeat] = predict_in_original_batches(
+                                model, original_test_x, sub, changed, args.predict_batch)
                     plan = effect_plan(d['x'][keep, j], raw[:, j]); ix = plan['indices']; bins = plan['bins']
                     low = np.array([], float); high = low.copy()
                     if len(ix):
                         lower = x[ix].copy(); upper = x[ix].copy()
                         lower[:, j] = (plan['edges'][bins]-mean[j])/std[j]
                         upper[:, j] = (plan['edges'][bins+1]-mean[j])/std[j]
-                        low = base.predict(model, lower, args.predict_batch); high = base.predict(model, upper, args.predict_batch)
+                        low = predict_in_original_batches(model, original_test_x, sub[ix], lower, args.predict_batch)
+                        high = predict_in_original_batches(model, original_test_x, sub[ix], upper, args.predict_batch)
                     atomic_npz(folder/'predictions.npz', global_p=marginal, terrain_p=terrain,
                         global_donor=donor_global, terrain_donor=donor_terrain, ale_indices=ix, ale_bins=bins,
                         ale_edges=plan['edges'], ale_low=low, ale_high=high)
@@ -203,7 +236,13 @@ def recover_store(old_out, job, identity, cfg, codec):
     for name,digest in old_cfg['sources'].items():
         if sha(old_out/'source'/name) != digest:raise ValueError('Recovery source snapshot differs')
     old_store=old_out/job.name/'fitted_model'
-    inspect_old(old_store,identity,old_cfg)
+    if old_cfg.get('persistence') == 'official_canonical_loaded_model_v3':
+        # A partial canonical run may have a committed fitted model but no
+        # sampled BASELINE yet. Preserve the model instead of fitting it again.
+        from .fitted_store_canonical import inspect_raw_store
+        inspect_raw_store(old_store, identity, old_cfg)
+    else:
+        inspect_old(old_store,identity,old_cfg)
     target=job/'fitted_model'
     if target.exists():raise FileExistsError('Recovery target exists; preserve and choose fresh output')
     shutil.copytree(old_store,target)
@@ -235,7 +274,7 @@ def model_identity(cfg, protocol, fold, d, keep, test, path):
 
 def audit(out, features, context_path):
     cfg = json.loads((out/'config.json').read_text(encoding='utf-8'))
-    if (cfg['version'] != 'V3_individual84_loaded_canonical_s42' or cfg.get('persistence') != 'official_canonical_loaded_model_v3' or cfg.get('reference_policy') != POLICY or cfg.get('stability_tolerance') != TOLERANCE or cfg['seed'] != 42 or cfg['sources'] != sources()
+    if (cfg.get('prediction_policy') != PREDICTION_POLICY or cfg['version'] != 'V3_individual84_loaded_canonical_s42' or cfg.get('persistence') != 'official_canonical_loaded_model_v3' or cfg.get('reference_policy') != POLICY or cfg.get('stability_tolerance') != TOLERANCE or cfg['seed'] != 42 or cfg['sources'] != sources()
         or cfg['protocol'] not in ['both', 'spatial', 'admin'] or cfg['repeats'] < 1 or cfg['max_per_fold'] < 0 or cfg['min_cell'] != 8
         or cfg['checkpoint_sha256'] != base.CHECKPOINT_SHA or cfg['features_sha256'] != sha(features/'manifest.json')
         or cfg['contexts_sha256'] != sha(context_path) or cfg['reference_sha256'] != sha(REFERENCE/'manifest.json')

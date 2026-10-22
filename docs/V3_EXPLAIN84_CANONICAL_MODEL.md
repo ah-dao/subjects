@@ -22,6 +22,28 @@ legacy_vs_refit_fullfold_metrics.csv同时列历史参考、保存前拟合、ca
 
 ## 运行
 
+### spatial fold1抽样核对报错后的恢复
+
+若日志在`MODEL SAVED spatial 1`后报告`2.2117048501968384e-05 > 2e-05`，报错点是抽样预测与完整折基线的比较，不能据此认定独立拟合不稳定。旧代码重新拼接抽样行，改变了预测批次大小、行位置和其余查询行；尚未在真实GPU上证明这就是全部误差原因。
+
+修订版按完整测试折的原批次布局调用预测：抽样校验、全局/层内置换、ALE都保留选中行的原位置及未改行，只计算包含目标行的原批次。门槛仍为2e-5，独立加载与跨进程校验不放宽。新增配置`prediction_policy=original_fullfold_batches_v1`，旧结果不能直接混入新输出。完整折内同批的多个目标行可同时替换；耗时可能增加。
+
+保留本次失败目录和旧saved目录。更新代码后，从**本次失败的canonical目录**恢复到新输出目录，以复用已经保存的fold0、fold1；恢复阶段校验源配置、源码快照与存储指纹，不拟合已保存模型，也不改写旧模型或参考：
+
+```bash
+cd /3250707052/subjects-git
+git status --short
+git pull --ff-only origin main
+source /3250707052/.venv-tabpfn-cu124/bin/activate
+mkdir -p logs
+nohup bash scripts/run_v3.sh canonical \
+  --recover-from results/v3_explain84_canonical_s42 \
+  --out results/v3_explain84_canonical_batches_s42 \
+  > logs/v3_explain84_canonical_batches_s42.log 2>&1 < /dev/null &
+```
+
+以上路径对应默认运行；若本次用了其他`--out`，恢复源必须换成本次真实失败目录。不要从旧saved目录重新开始，否则无法复用后来新保存的fold1。若输出目录已存在，不删除它；先检查其配置和日志。若原批次校验仍失败，程序保留预测差异诊断并停止，需要检查诊断，不能直接进入PFI。本地CPU测试覆盖批次敏感替身及无fit恢复，仍需服务器真实GPU验证。
+
 代码同步统一使用Git，见[V3 Git与SSH流程](V3_GIT_SSH_WORKFLOW.md)；结果按该指南通过SSH自行导出。
 
 ```bash
