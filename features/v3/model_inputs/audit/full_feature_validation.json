@@ -1,0 +1,47 @@
+{
+  "source_ranges": {
+    "ndvi": {
+      "min": -0.3690657426465368,
+      "max": 0.5009896384676112,
+      "missing": 589
+    },
+    "maxdaily": {
+      "min": 40.84645080566406,
+      "max": 270.14532470703125,
+      "missing": 0
+    },
+    "max30d": {
+      "min": 146.2651710510254,
+      "max": 561.400074005127,
+      "missing": 0
+    },
+    "heavydays": {
+      "min": 0.0,
+      "max": 15.0,
+      "missing": 0
+    },
+    "cumulative": {
+      "min": 830.7208967208862,
+      "max": 1984.4730887413025,
+      "missing": 0
+    },
+    "monthly": {
+      "min": 0.0,
+      "max": 557.4146270751953,
+      "missing": 0
+    },
+    "crop": {
+      "min": 0.0,
+      "max": 1.0,
+      "missing": 0
+    },
+    "built": {
+      "min": 0.0,
+      "max": 1.0,
+      "missing": 0
+    }
+  },
+  "positive_full84_identical_across_ten_views": true,
+  "csv_npz_checked": true,
+  "passed": true
+}

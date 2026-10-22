@@ -1,0 +1,72 @@
+{
+  "sources": {
+    "__init__.py": "e9ebde381d628fba6b0f664c8e65ff3b7476b738eff640af794eff66f9246dc4",
+    "common.py": "62f8a489f4a9d0af8ee0ad0cf1a7c2a73089173adb579a3003a35d65849444e3",
+    "temporal.py": "98095067b04ff76b981dee49db306d4cef1ae85e28bd5a0675cfba94e00fc671",
+    "assemble.py": "b54f3ec9ee7a5aad246884673afc29219811033dabbe57c53917ec15ec4b6f8f",
+    "train.py": "21c1cc826469261fa70b8a71691be0447d31bd87cfbc16b3f971e5dc0b3bfe43",
+    "water_background.py": "2e2d79c06c9ca9cec3c8764675a02adbecbc2ae45e01ad9ec7308b631861b4eb",
+    "reference_dates.py": "63d1c8c25d5d0ead513a90e3be4f8ed44c61969073773c4f6786d23b18b76a94"
+  },
+  "source_config_sha256": "ff221270b26da2d481c0a05eaadbd42440d6ac305d1d8d239ec3a3a9e2dadff2",
+  "feature_manifest_sha256": "a3beb0672e91b584eb63180de979e6d62defa1a61614dd1e824742ab8e207802",
+  "context_plan_sha256": "93f8cc71c2bb6f4ea6cce2950be6ff3c186709b6d0e6dc3c428c61e2cddefd74",
+  "checkpoint_sha256": "cf8c519c01eaf1613ee91239006d57b1c806ff5f23ac1aeb1315ba1015210e49",
+  "seed": 42,
+  "dimensions": 84,
+  "fits": {
+    "spatial/0": {
+      "input_sha256": "ea2e5b2458faecaa9673ae1d4c57fc22288ed286b9cff1a8e36d186e64b060e5",
+      "predictions_sha256": "69b141b33b35322c995066a0ed24b2f65b4d3567265a68ecf26ca3a2d273998e",
+      "fit_sha256": "3a2abbe0e84e627a07c771759aa6c50c01a51ba690ac7771875d7332e210e5ae"
+    },
+    "spatial/1": {
+      "input_sha256": "78b69c7d6307f65e3871bd84faf4bda7e16a03fa296ab5d8960b2cf81b6fafc5",
+      "predictions_sha256": "aa7b692bb3fa886904aad8d034a3c44228b8394ee9a62e4bb04f4115593530c5",
+      "fit_sha256": "83e032cbfc9158d7e97b65aa91b7dfcb530c296b2940ff03b657145c967611b2"
+    },
+    "spatial/2": {
+      "input_sha256": "945ef30d1add3941d5b850784c6be3cf4f6d99c7864ca0d5148d2048e0d0f6bc",
+      "predictions_sha256": "893ec568c3e588942efa21eab84dbeb704c1f2f12df72ccc266928241a8061cf",
+      "fit_sha256": "17ba7063b497e7811490aa4982b8a559f1329252846d77a89ef6f91f3b86b4e5"
+    },
+    "spatial/3": {
+      "input_sha256": "00e3246c73b41dca3f20e5ee1a4acbfa5a7b9183573836bda8da59992e23482d",
+      "predictions_sha256": "4b77e2755b2fb9d535db5eee3a7741ed3e448a84d861ee552dc0c87218a7026c",
+      "fit_sha256": "3d458494546292858ae15f053a7f2ae254ce2f1fd1e1fc539b5eaf89561ea8cd"
+    },
+    "spatial/4": {
+      "input_sha256": "6562d6135057170898c74405b614a3cc8fb1dd4662e343fc1202d53c9e5af5f2",
+      "predictions_sha256": "64930ad6a65e23a770506256177aa74d00942dc937a600538ccf43bdd6c1fd3e",
+      "fit_sha256": "1701f3e1ad9c16964ac68bc84d495ebeb3aa2ffd21c269be1722ad9e70dd1242"
+    },
+    "admin/0": {
+      "input_sha256": "d6aa143596106c61146f2adb7c3dfc88372ebabb3d505f8ca138cd3783e0ab23",
+      "predictions_sha256": "0cc358a259feb34b86ea42c3f5ec44025c1b2b7e54bbb001fb746c37c56d7d1a",
+      "fit_sha256": "f146d07037c46eeab5c8997c236df1c121f15d62a1297a3027c9cc14e7a5b6d5"
+    },
+    "admin/1": {
+      "input_sha256": "a4199badcec25d7ac921afcec692b11e331c65d9fe2f9ffa2de74bab293bc614",
+      "predictions_sha256": "92d34060abbebdc8937d9d54c3552bc3407ec4b985861264ee54e062b0c09eef",
+      "fit_sha256": "f950b3fa45b52aae661014959bb794a0690f8b10b929a23763bf477bacae203b"
+    },
+    "admin/2": {
+      "input_sha256": "20e60e2628b58301e4ff0fab58f806e803fd2b47e6d206a52c8674c0aea2b890",
+      "predictions_sha256": "8c42b5c0070749062039f4ef40ee7b444e6646934048fc40665eb65b888874fd",
+      "fit_sha256": "a9431924762250e5966b6253ccea847ac98954b6de915a39ed1ba877d3aeaa4f"
+    },
+    "admin/3": {
+      "input_sha256": "ea4d7051edf7f2cac6586e02bfb3152148b30da400981e8a5e58c512e4d575b3",
+      "predictions_sha256": "994210140270809705b0f7496ab2ca447f242d0075ce8bbca15ea106042e476c",
+      "fit_sha256": "2d6598d873fa6ece084ddba96510dff686de17c26218da7afaac8b9ac385dbaf"
+    },
+    "admin/4": {
+      "input_sha256": "ba478a3da531e42d5187fcb403959289b87071a16fcb57c35596fca8b4cbeea2",
+      "predictions_sha256": "9c66efafd1de7ee4908de2a547fc68001dc4a6ba94f53d0c065f843c061ef301",
+      "fit_sha256": "26bf8670a1ab31f2440cdbc060d2b58012a653b00105fce5b3aea1aea817a8e9"
+    }
+  },
+  "files": {
+    "predictions.csv": "c54298d85a3674431b41c1182b933526bccef9e63cd2f16632211c214f77333a"
+  }
+}

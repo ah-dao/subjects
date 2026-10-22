@@ -1,0 +1,13 @@
+# Install torch first from the official cu124 index, then install this file.
+torch==2.6.0
+tabpfn==8.5.0
+xgboost==3.2.0
+numpy==1.26.4
+pandas==2.2.3
+scipy==1.15.3
+scikit-learn==1.6.1
+# These are needed only if rebuilding the pixel cache.
+rasterio==1.3.11
+pyproj==3.6.1
+shapely==2.0.6
+pyshp==2.3.1

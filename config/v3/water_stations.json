@@ -1,0 +1,28 @@
+{
+  "version": "V3-stations-1",
+  "coordinate_reference": "WGS84 interpretation of published longitude/latitude; original datum unspecified",
+  "coordinate_precision": "Published to one arc-minute; representative historical positions, not surveyed epoch-specific locations",
+  "source": {
+    "title": "The application of decision support system to the Three Gorges Reservoir operation",
+    "authors": "HE Wenshe, CHEN Ji, DAI Huichao",
+    "journal": "Journal of Hydroelectric Engineering, 27(2), 2008",
+    "table": "Table 1, PDF page 4 (printed page 14)",
+    "url": "https://hub.hku.hk/bitstream/10722/71058/1/Content.pdf"
+  },
+  "location_crosscheck": {
+    "title": "涪陵清溪移民复建码头改建项目环境影响报告书, 2025, section 3.1.5",
+    "url": "https://www.fl.gov.cn/bm/sthjj/zwgk_46444/fdzdgknr_46446/zdhjyxpj/jsxmhpspqk/202506/W020250630578309655902.pdf",
+    "finding": "清溪场在涪陵，位于寸滩与万县之间；不是秭归站。"
+  },
+  "stations": [
+    {"station": "寸滩", "longitude_dms": [106, 36, 0], "latitude_dms": [29, 37, 0]},
+    {"station": "清溪场", "longitude_dms": [107, 24, 0], "latitude_dms": [29, 45, 0]},
+    {"station": "万县", "longitude_dms": [108, 25, 0], "latitude_dms": [30, 45, 0]},
+    {"station": "奉节", "longitude_dms": [109, 31, 0], "latitude_dms": [31, 2, 0]}
+  ],
+  "limitations": [
+    "Stations have relocation histories. These coordinates do not resolve day-specific station moves or water-level datum changes.",
+    "Nearest spatial distance is a proxy, not river-network distance, tributary connectivity or water-surface interpolation.",
+    "A 5 km distance-margin flag identifies potentially sensitive boundaries; it is not a calibrated location-error bound."
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "versions": {
+    "numpy": "1.26.4",
+    "pandas": "2.2.3",
+    "scikit-learn": "1.6.1",
+    "torch": "2.6.0",
+    "tabpfn": "8.5.0"
+  },
+  "reference_sha256": "f45e9535edbe683ca1c47579899383ac967f8f80d1663ea2ef1bfcb6abf00f98",
+  "files": {
+    "training_config.json": "ff221270b26da2d481c0a05eaadbd42440d6ac305d1d8d239ec3a3a9e2dadff2"
+  }
+}

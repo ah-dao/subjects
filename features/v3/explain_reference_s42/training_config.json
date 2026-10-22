@@ -1,0 +1,189 @@
+{
+  "version": "V3_stats84",
+  "action": "train",
+  "protocol": "both",
+  "seeds": [
+    42,
+    43,
+    44
+  ],
+  "jobs": [
+    [
+      "spatial",
+      0,
+      42
+    ],
+    [
+      "spatial",
+      0,
+      43
+    ],
+    [
+      "spatial",
+      0,
+      44
+    ],
+    [
+      "spatial",
+      1,
+      42
+    ],
+    [
+      "spatial",
+      1,
+      43
+    ],
+    [
+      "spatial",
+      1,
+      44
+    ],
+    [
+      "spatial",
+      2,
+      42
+    ],
+    [
+      "spatial",
+      2,
+      43
+    ],
+    [
+      "spatial",
+      2,
+      44
+    ],
+    [
+      "spatial",
+      3,
+      42
+    ],
+    [
+      "spatial",
+      3,
+      43
+    ],
+    [
+      "spatial",
+      3,
+      44
+    ],
+    [
+      "spatial",
+      4,
+      42
+    ],
+    [
+      "spatial",
+      4,
+      43
+    ],
+    [
+      "spatial",
+      4,
+      44
+    ],
+    [
+      "admin",
+      0,
+      42
+    ],
+    [
+      "admin",
+      0,
+      43
+    ],
+    [
+      "admin",
+      0,
+      44
+    ],
+    [
+      "admin",
+      1,
+      42
+    ],
+    [
+      "admin",
+      1,
+      43
+    ],
+    [
+      "admin",
+      1,
+      44
+    ],
+    [
+      "admin",
+      2,
+      42
+    ],
+    [
+      "admin",
+      2,
+      43
+    ],
+    [
+      "admin",
+      2,
+      44
+    ],
+    [
+      "admin",
+      3,
+      42
+    ],
+    [
+      "admin",
+      3,
+      43
+    ],
+    [
+      "admin",
+      3,
+      44
+    ],
+    [
+      "admin",
+      4,
+      42
+    ],
+    [
+      "admin",
+      4,
+      43
+    ],
+    [
+      "admin",
+      4,
+      44
+    ]
+  ],
+  "parameters": {
+    "context": 4000,
+    "n_estimators": 2,
+    "fit_mode": "fit_preprocessors",
+    "predict_batch": 32,
+    "device": "cuda"
+  },
+  "versions": {
+    "numpy": "1.26.4",
+    "pandas": "2.2.3",
+    "scikit-learn": "1.6.1",
+    "torch": "2.6.0",
+    "tabpfn": "8.5.0"
+  },
+  "feature_manifest_sha256": "a3beb0672e91b584eb63180de979e6d62defa1a61614dd1e824742ab8e207802",
+  "context_plan_sha256": "93f8cc71c2bb6f4ea6cce2950be6ff3c186709b6d0e6dc3c428c61e2cddefd74",
+  "checkpoint_sha256": "cf8c519c01eaf1613ee91239006d57b1c806ff5f23ac1aeb1315ba1015210e49",
+  "sources": {
+    "__init__.py": "e9ebde381d628fba6b0f664c8e65ff3b7476b738eff640af794eff66f9246dc4",
+    "common.py": "62f8a489f4a9d0af8ee0ad0cf1a7c2a73089173adb579a3003a35d65849444e3",
+    "temporal.py": "98095067b04ff76b981dee49db306d4cef1ae85e28bd5a0675cfba94e00fc671",
+    "assemble.py": "b54f3ec9ee7a5aad246884673afc29219811033dabbe57c53917ec15ec4b6f8f",
+    "train.py": "21c1cc826469261fa70b8a71691be0447d31bd87cfbc16b3f971e5dc0b3bfe43",
+    "water_background.py": "2e2d79c06c9ca9cec3c8764675a02adbecbc2ae45e01ad9ec7308b631861b4eb",
+    "reference_dates.py": "63d1c8c25d5d0ead513a90e3be4f8ed44c61969073773c4f6786d23b18b76a94"
+  },
+  "injected_test_predictor": false
+}

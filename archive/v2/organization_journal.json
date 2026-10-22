@@ -1,0 +1,1328 @@
+[
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\docs",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\docs",
+    "sha256": null
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\ADMIN_TABPFN_4K_RUNBOOK.md",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\root_docs\\ADMIN_TABPFN_4K_RUNBOOK.md",
+    "sha256": "70f7e8b5d39fd135287bf130d074e297534467d942c035d361803e074dda518e"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\SERVER_RUNBOOK_TABPFN.md",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\root_docs\\SERVER_RUNBOOK_TABPFN.md",
+    "sha256": "c4bd2299ec815f11534d172113eb8fb19a8b9796e165b5e425a166d71db8d13f"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\admin_ablation_return.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\returns\\admin_ablation_return.zip",
+    "sha256": "dfb1d1161274a267b0de682a4a8c876b1d34e8fda3599acfcf41b3975b072ee4"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\admin_attribution_return.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\returns\\admin_attribution_return.zip",
+    "sha256": "c92a88f3973d0dc13a8f31ca3bae12a97c14744f47f1a02e401051858f586bf9"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\admin_bands_return.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\returns\\admin_bands_return.zip",
+    "sha256": "8c88d499bbf3de0dadb65ecd387b0bec5a29af6273a6c8de20537762ffc8202c"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\admin_ordinary_return.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\returns\\admin_ordinary_return.zip",
+    "sha256": "406d8e975ba44646c4e04be9985a726a9faef1244330167fc51cf18eb752ef64"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\attention_replay_20261015_093204.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\returns\\attention_replay_20261015_093204.zip",
+    "sha256": "aedd3d9074baa648494fec4c3846d4ac9a0ffa1aa57951ec3612ade6f124936c"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\pixel_bag_followup_v11_return.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\returns\\pixel_bag_followup_v11_return.zip",
+    "sha256": "de36bc214c82d87840bc755b441f556aad5bbea08f80a41e45d079f25445d7f7"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\pixel_bag_repr_development_return.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\returns\\pixel_bag_repr_development_return.zip",
+    "sha256": "ecfbc61f72cb94109750ff8afd8ab59054064ef6aca22c50fadeb0834763b359"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\pixel_bag_repr_outer_fold4_return.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\returns\\pixel_bag_repr_outer_fold4_return.zip",
+    "sha256": "176e70593d37a9340a56a657afd488a31e7ecb9d73521864189bac410bcc07de"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\pixel_bag_v1_smoke_return.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\returns\\pixel_bag_v1_smoke_return.zip",
+    "sha256": "d4f44466281f8d386c084d04c0cd2ee566a4b51f35390fa68c483f9396384751"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\pixel_bag_v1_spatial_s42_e12_return.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\returns\\pixel_bag_v1_spatial_s42_e12_return.zip",
+    "sha256": "9d64d1805ba720965191aae3e6801a57a8d6e5993cf692574f96acf0c2fe00f1"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\pixel_tabpfn_admin5_4k_baseline_return.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\returns\\pixel_tabpfn_admin5_4k_baseline_return.zip",
+    "sha256": "54b34260c86ede3fd34a48f0e94e55488ad98190e0eedd368d6e15846a2462d8"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\pixel_tabpfn_admin5_4k_fusion_return.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\returns\\pixel_tabpfn_admin5_4k_fusion_return.zip",
+    "sha256": "ec595bba2c94cd354441fecfe6144b8d386e89590de496abe2af161aa3153483"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\pixel_tabpfn_spatial5_4k_jsonfix_return.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\returns\\pixel_tabpfn_spatial5_4k_jsonfix_return.zip",
+    "sha256": "8eb269fb7630e45b1edc0124a1c6af30e26cc232d8b7bbe3bd1195d6035d7a39"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\pixel_tabpfn_spatial5_fusion_4k_return.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\returns\\pixel_tabpfn_spatial5_fusion_4k_return.zip",
+    "sha256": "16671d8d15fe50ba90d407d91ff2b75b8ca9390b0b4a1b1a8b240270b0d0aad0"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\spatial_ablation_return.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\returns\\spatial_ablation_return.zip",
+    "sha256": "53a09a644afdd732ed0a8f56801589fe91f8faed319cfa774193676640c3541d"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\spatial_attribution_return.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\returns\\spatial_attribution_return.zip",
+    "sha256": "240c3548a7c3287d7bce72e76d17d38ed8eb03c0abc6e2f5e5b96df0e42b9b37"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\spatial_bands_return.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\returns\\spatial_bands_return.zip",
+    "sha256": "4ea376c7e6ecb2beaf108d02a9b5f1823f568154d7c741e5cda30eb229dee28f"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\spatial_ordinary_return.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\returns\\spatial_ordinary_return.zip",
+    "sha256": "f799acb39c3282797fd572f4e378ac50568d184b24e6ddf92b095041dfca2779"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\dist\\mil_prepare.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\packages\\mil_prepare.zip",
+    "sha256": "5e5424f653f2870c672a9882be887356e9b81ce2bd6b5f33d13f36a2daa1e87a"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\dist\\pixel_bag_attention_replay_fix.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\packages\\pixel_bag_attention_replay_fix.zip",
+    "sha256": "9c4b52dd58cd15fb4b675fb18d3eab58023f22c05a4524564c7a88536cf9aa4c"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\dist\\pixel_bag_diagnostics_patch.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\packages\\pixel_bag_diagnostics_patch.zip",
+    "sha256": "4ebcb7194edceb0861e519a7fd762ae55b231560b5814bacc84da7e52e047711"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\dist\\pixel_bag_repr_fold4_patch.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\packages\\pixel_bag_repr_fold4_patch.zip",
+    "sha256": "b5a0694572b22d3dde19cae4e35addd7c00caac450e40b3b4cf263e3d0a555f7"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\dist\\pixel_bag_repr_v1_patch.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\packages\\pixel_bag_repr_v1_patch.zip",
+    "sha256": "6a16284a2abeb55134b48032a97d5695130c9e6d6e5d073ad67b59c73a3f58e8"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\dist\\pixel_bag_v1_patch.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\packages\\pixel_bag_v1_patch.zip",
+    "sha256": "30b1ed4941443d4d4b1b9d800efa401a0ff3b797bf5bc3189c21302da67ed5da"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\dist\\pixel_bag_v11_patch.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\packages\\pixel_bag_v11_patch.zip",
+    "sha256": "232bd2fea6ea2ed0ffc91ae7a4fe90331db680c5f9d1eb623fcc50cead733c4d"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\dist\\pixel_geo_ablation_v1_patch.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\packages\\pixel_geo_ablation_v1_patch.zip",
+    "sha256": "398299fb40fe28c3d296f9679c395706c64c7f7baefeaa747aff54be37baba30"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\dist\\pixel_geo_repr_v1_patch.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\packages\\pixel_geo_repr_v1_patch.zip",
+    "sha256": "a3e17854f150f0db46c1b8143eb738bd1be4a8998a7860c2529cff24febe749d"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\dist\\pixel_stats_attribution_v1_patch.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\packages\\pixel_stats_attribution_v1_patch.zip",
+    "sha256": "ddfb917b8a1f12e9329647796787e9104711ef963c5087b4d69d9da421c2c53f"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\dist\\pixel_tabpfn_admin5_4k_patch.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\packages\\pixel_tabpfn_admin5_4k_patch.zip",
+    "sha256": "4dbe29077bea56ee8eca85c7e67d1b41c70df211f99cf263063f1a02821dfa74"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\dist\\pixel_tabpfn_diagnostics_v1_patch.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\packages\\pixel_tabpfn_diagnostics_v1_patch.zip",
+    "sha256": "556b0550520f6ad59048632a298a2ea802544eb5f678ae6df9b93c9d76b5b4b8"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\dist\\pixel_tabpfn_initial_maps_20261020.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\packages\\pixel_tabpfn_initial_maps_20261020.zip",
+    "sha256": "74a6dd25fd846bcdd1d7361e8926869178d429e73881cea19b9c31e77c8febb3"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\dist\\pixel_tabpfn_jsonfix.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\packages\\pixel_tabpfn_jsonfix.zip",
+    "sha256": "5638b33ba7ecb0efa2d133f27f06cf579efdbf5044815bafff6d1243e1bb12a7"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\dist\\pixel_tabpfn_natural_breaks_20261020.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\packages\\pixel_tabpfn_natural_breaks_20261020.zip",
+    "sha256": "7386583ea3d3def9d8759ffac489e16abd5d456e30a5f57feb396cc8f4a833c0"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\dist\\pixel_tabpfn_restart_bundle_checked.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\packages\\pixel_tabpfn_restart_bundle_checked.zip",
+    "sha256": "d9bade89a9143a7f92de604488c1dfbfba0cbc80c88cdf7dc57b1d98faeba8d7"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\dist\\pixel_tabpfn_restart_bundle.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\packages\\pixel_tabpfn_restart_bundle.zip",
+    "sha256": "9cd4a1b7b14a700709a6bbd63db339116b8abd284aa2b5147c596f804d782b80"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\dist\\pixel_tabpfn_server_ready.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\packages\\pixel_tabpfn_server_ready.zip",
+    "sha256": "7209a44f08f785ed8ca9532033b3584a5dc51e6bf23f2f4e9c26a6c28416e9fa"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\dist\\pixel_tabpfn_v1_patch.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\packages\\pixel_tabpfn_v1_patch.zip",
+    "sha256": "d7e62e66aa727a63b3279a3057571fb96c38d829e3ff99d265907aeb5f446882"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\dist\\server_bundle_1009_slim.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\packages\\server_bundle_1009_slim.zip",
+    "sha256": "5f7a006bf4db0792c3a788e34f8c45f7c13335ad91dc5c7f2f83ff868caa405f"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\dist\\server_bundle_1009.zip",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\packages\\server_bundle_1009.zip",
+    "sha256": "4eeab24816f7e6d0bc48a6d1c1a6a71e7eb0a8dd7490e6c0c64543537131778b"
+  },
+  {
+    "action": "move",
+    "source": "C:\\Users\\dollars\\code\\subjects\\dist\\torch-2.9.1+cu128-cp310-cp310-win_amd64.whl",
+    "destination": "C:\\Users\\dollars\\code\\subjects\\archive\\v2\\packages\\torch-2.9.1+cu128-cp310-cp310-win_amd64.whl",
+    "sha256": "64399adaa8ea0896d02cf844cba3c5dd77e769520a1af73572599e0eaa2cf551"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_age1.csv",
+    "bytes": 13483954,
+    "sha256": "7fb1708cc146e5a81a9eaaeb934d37fd93bb57fe192e1185dca19af812126a81",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_allgeo14.csv",
+    "bytes": 15956471,
+    "sha256": "2ecfcef2b3b4030347afb0d0a1b008bade8dc00b0bd44c062c49626f17efc26b",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_base34.csv",
+    "bytes": 13259866,
+    "sha256": "53318db21a93a2ad0639c1c96235270b8e907c8f29468889e5bd0c974e215b8c",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_facet12.csv",
+    "bytes": 15270910,
+    "sha256": "fd95dcc967a2b1fe46e9b7e22bb6f218a68ef152f22cf8f3eb5c80a288a6bcd9",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_gen4.csv",
+    "bytes": 13722331,
+    "sha256": "1b45c2b5a644da464ace73db32644cb234d2afe7bb31899a7c34c54ade4175c5",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_geo1.csv",
+    "bytes": 13721339,
+    "sha256": "ddd67bfdb1830bcaee7d3e122153251f3658f8f9e6ab0b557420e32f435f74d9",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_geo2.csv",
+    "bytes": 14191390,
+    "sha256": "563815134eae1cf44beaad15a622d2e3084c1d3a66492a16fce1c0ae7fd09142",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_hard4.csv",
+    "bytes": 13763405,
+    "sha256": "803aad6aff9baf6df187b0e610bbd143c28741edb3004709f6c4d5e12ec39184",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_age1_r00.csv",
+    "bytes": 13483954,
+    "sha256": "40f41d007a0f6dec1f5e7e7689ee39ed110eab8c329768cdd954868641d0b261",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_age1_r01.csv",
+    "bytes": 13483954,
+    "sha256": "98957766df1967e8426a84d1dc8575a61c1e0f9ec093a24d756d05a47a8e66c7",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_age1_r02.csv",
+    "bytes": 13483954,
+    "sha256": "83b28756e50db5031bbf39094046cb99fd5325ffee8e8c2540703582d2334d72",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_age1_r03.csv",
+    "bytes": 13483954,
+    "sha256": "c7f21e88cbdc524cda3180cad6083a1deaa72fd1d678d816423da84954de26d3",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_age1_r04.csv",
+    "bytes": 13483954,
+    "sha256": "a37e1e46b653e8f35455115fd3df784df4a0a635e60e5740fe765ad683353d9d",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_allgeo14_r00.csv",
+    "bytes": 15956471,
+    "sha256": "c67d1a779659640ec607fa99c740df069f173abc4ec3cea76378cf9828ea4b65",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_allgeo14_r01.csv",
+    "bytes": 15956471,
+    "sha256": "fec38381a4e86dddb2655082ad5b5750c4414613c623e1c3a32d5e3411edd0e5",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_allgeo14_r02.csv",
+    "bytes": 15956471,
+    "sha256": "ca307b6efac17d7e3e5e516db8abd470bc1d92d0f6c7c4a3b593dbbd997144aa",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_allgeo14_r03.csv",
+    "bytes": 15956471,
+    "sha256": "f75584282eebe5721c1bed0fabac6b48229f2c50be98a331ea4e20d4920777c4",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_allgeo14_r04.csv",
+    "bytes": 15956471,
+    "sha256": "971833ea71f29b77c652e1dadc373e9d7fb785f1804cb63c4d1abbc8decb14b5",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_facet12_r00.csv",
+    "bytes": 15270910,
+    "sha256": "79df8d099161459a2164e8b15cadbfd354953b3d286f772ca9e79da15319c4df",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_facet12_r01.csv",
+    "bytes": 15270910,
+    "sha256": "da1cfb866e6f4cad88473da2ba307673525806c4dbd3b89da082e39e8bb2825f",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_facet12_r02.csv",
+    "bytes": 15270910,
+    "sha256": "b50a98c5218a4356c0b78f7e67831957e87f4e3591fbfeff326b8244b8054ec5",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_facet12_r03.csv",
+    "bytes": 15270910,
+    "sha256": "a442f658f8946219b4d57ce84602bea773a502f8693a8ad0b50247fe296ef6f3",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_facet12_r04.csv",
+    "bytes": 15270910,
+    "sha256": "4a81b20eae6fc17d1e33b31f805d6f430bc16816840f64155ed4f4e620d130ab",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_gen4_r00.csv",
+    "bytes": 13722331,
+    "sha256": "a1f1752b8555094e95d4522ee859765d504428d0e0df8f7882353fe11f522401",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_gen4_r01.csv",
+    "bytes": 13722331,
+    "sha256": "4fef489ee6e8be626182fd5a5fac9e39c3a6ae3c8e5e87d04b57d6ca7659e1f8",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_gen4_r02.csv",
+    "bytes": 13722331,
+    "sha256": "aee6df97e830c3d61ba4191b16c51e7b807bf8ef560ea786906548aec29bcc36",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_gen4_r03.csv",
+    "bytes": 13722331,
+    "sha256": "35c1be7f84f0f44334a437d3036c94b0acc6b21508c4bf0459013ed252e1fe41",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_gen4_r04.csv",
+    "bytes": 13722331,
+    "sha256": "e1d1d652e2177935da8e05cbb14828a6993738f0c4fc1e487ddc2ecc92d46ee1",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_geo1_r00.csv",
+    "bytes": 13721339,
+    "sha256": "a6d01078d92e9c9da01f473cce5d138f656a8b766cb89c1521fd959a7b1da919",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_geo1_r01.csv",
+    "bytes": 13721339,
+    "sha256": "906de1494934655b279deb47fc02339c1ecaf841db03cf2fe730e325a6447309",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_geo1_r02.csv",
+    "bytes": 13721339,
+    "sha256": "469bb0c12d52bff4b90e4e6c0cd61a0fbfa0d72ab5286689874721d838363be2",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_geo1_r03.csv",
+    "bytes": 13721339,
+    "sha256": "0351344d2b23d897507ea918ed1ba7c9b725a9373b5fd526ccecba8585b7f01a",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_geo1_r04.csv",
+    "bytes": 13721339,
+    "sha256": "8df3b5c3fba6b5208423f2cd516db2905e84188588a50ecc92846d448c030786",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_geo2_r00.csv",
+    "bytes": 14191390,
+    "sha256": "ae8de3142e66cf983cec7e30a71387794b52bd0935a061c8e678dd8b3f9b1e44",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_geo2_r01.csv",
+    "bytes": 14191390,
+    "sha256": "56fe271f2a6e3b26b710da426f3a7f4e6e60bdb32d1ae7190866ba33ffd4aec2",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_geo2_r02.csv",
+    "bytes": 14191390,
+    "sha256": "525520fc894a871289fc0a42cfe09d2cc8e7153e49d060e588754a9832ac09fa",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_geo2_r03.csv",
+    "bytes": 14191390,
+    "sha256": "7464cca85e03332dd67190d37797668ff13dd4988ab1a644d98ea7a4403d31cb",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_geo2_r04.csv",
+    "bytes": 14191390,
+    "sha256": "f8b259030635f4e2ddc9e5bdce3944eff8ea2f8d7008ebefdb0151000f8c66e4",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_hard4_r00.csv",
+    "bytes": 13763405,
+    "sha256": "361340dd598e132dedb115d5271ead760f5f2e5973195b1efe6a59b721601e51",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_hard4_r01.csv",
+    "bytes": 13763405,
+    "sha256": "5eec36e297cbaef6995b179a325bb8ee7d15484ea3394c845915d27ad8e1afbd",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_hard4_r02.csv",
+    "bytes": 13763405,
+    "sha256": "7a3af589aa49fd546cf6e057326d708384fb82542f8ce6330eaafb7afeeb4c4f",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_hard4_r03.csv",
+    "bytes": 13763405,
+    "sha256": "e5a82d9afcb11c705e16ad648403dba95008088160ab3c69cc64dfda43962a6e",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_hard4_r04.csv",
+    "bytes": 13763405,
+    "sha256": "680ad68d4e5dacba1b40ece888872464895d4e60869abe9678740f07d508c1d2",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_sel4_r00.csv",
+    "bytes": 13810824,
+    "sha256": "30243bff677ece6825c9e17750caa34fff61939559e5d31a33a3f5673c638cd0",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_sel4_r01.csv",
+    "bytes": 13810824,
+    "sha256": "4cce029deccee2ae335dd354ec803a2458e56c24223709c9c34add8396719703",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_sel4_r02.csv",
+    "bytes": 13810824,
+    "sha256": "2a83e70211029d0c3b2793545d9032e6c5f592013038c730fc0fd3a1ac8e872a",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_sel4_r03.csv",
+    "bytes": 13810824,
+    "sha256": "8d82a136b2be15115058f16b9cb076f56883e24d1236d1aabc025621da49dbc9",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_sel4_r04.csv",
+    "bytes": 13810824,
+    "sha256": "03eea000397ad8b439b197b4fa3bf0e7f152fdd2204b0b07e85ab2cceab19c1b",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_sel4_r05.csv",
+    "bytes": 13810824,
+    "sha256": "3c90bdd7da6e547b8d422ed2c7e0ed89e0a9f7302f96a6191c0baad999560d26",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_sel4_r06.csv",
+    "bytes": 13810824,
+    "sha256": "316a8e8efadedbc6bae37f034caccd58bc81365905f7c86965b374e054aeec6e",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_sel4_r07.csv",
+    "bytes": 13810824,
+    "sha256": "97deb920b778f01f19b5222eb5f15cac6caf0931a7afa522d86bbe5d3ae2c814",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_sel4_r08.csv",
+    "bytes": 13810824,
+    "sha256": "f4b15c8ac372fa9b1a7a6ada95967a3911d40fd903f7c81afaee5de9dfbaa180",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_sel4_r09.csv",
+    "bytes": 13810824,
+    "sha256": "38220d74fa86d4b8912c29fecbda70e57b7243324dfdab5c7f2e5083fbafc897",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_sel4_r10.csv",
+    "bytes": 13810824,
+    "sha256": "80be4ed5d24c875a7a782e9f8e1bdce74088fe2742821b7f5577fae1f225c92a",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_sel4_r11.csv",
+    "bytes": 13810824,
+    "sha256": "2742ad0eb1cf9dd580062aeb8f5495000d9a927d0aebef54a845d6cc6c58a72e",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_sel4_r12.csv",
+    "bytes": 13810824,
+    "sha256": "7d67a559adc00884ec80c1b6565875243c9bbf4a7a0cc2dc8c3f0536481bca0f",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_sel4_r13.csv",
+    "bytes": 13810824,
+    "sha256": "140390465c3ec4398e048e47e81fb05742eb9c6bcbe55b822ea6f969ab2a8613",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_sel4_r14.csv",
+    "bytes": 13810824,
+    "sha256": "d5d5924f515146afc38da03899695a882723c5d1a1437e5cd924a4eba54a2cac",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_sel4_r15.csv",
+    "bytes": 13810824,
+    "sha256": "8581eaad9c39660db51ae599524072daf785eec21c0dce331bc52ba65cbea324",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_sel4_r16.csv",
+    "bytes": 13810824,
+    "sha256": "1cd1ea3ebee749ca04c63d234404907da0c94434ce12268d385ce68f0686ae34",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_sel4_r17.csv",
+    "bytes": 13810824,
+    "sha256": "6c079bd3c85da032cf9101655c9a90ab45c52cf3661a8d602cb77500984ca67f",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_sel4_r18.csv",
+    "bytes": 13810824,
+    "sha256": "8c5cb740eb2ba9678be7995d406fe18a0840baacda93e0fb722c008c94a07597",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_sel4_r19.csv",
+    "bytes": 13810824,
+    "sha256": "cacaaae7afb94be699e62b4ab0d25d7c71f955771773c4b7134672e5fbd870d2",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_stype1_r00.csv",
+    "bytes": 13593541,
+    "sha256": "2113f29e17fb93e64e2b20550a0a431f78820dd009ca8803ee748b544dfdb137",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_stype1_r01.csv",
+    "bytes": 13593541,
+    "sha256": "c2572baf803720d43ec9bf41dc87f7a806f7537784a426138a7899b126b8de13",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_stype1_r02.csv",
+    "bytes": 13593541,
+    "sha256": "30f74112b4414d22db43dff027cf3c950c314ab8d5599675c89826bec4cf82e2",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_stype1_r03.csv",
+    "bytes": 13593541,
+    "sha256": "482cd0115b16bd1b50395a586315edced65318fed49c107b8ab1131582938b66",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_stype1_r04.csv",
+    "bytes": 13593541,
+    "sha256": "a184577a09ee62b399ff5ea491cd08a71db8c317159d30df41d4ea3ca93359d3",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_stype4_r00.csv",
+    "bytes": 14216413,
+    "sha256": "908fc0c68e13af9728c5e45a229c8ca85ae4e2e1237008abbf67acc03f27237d",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_stype4_r01.csv",
+    "bytes": 14216413,
+    "sha256": "07ee64902a28b56eb8c41f45eb877fa85c107e07c02163e6851bd803bb6bf393",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_stype4_r02.csv",
+    "bytes": 14216413,
+    "sha256": "d0202a90f6a41f1eb9e108e58fea02cbffbc6bd04acef7238f9459dd50b226c3",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_stype4_r03.csv",
+    "bytes": 14216413,
+    "sha256": "a52be3087b60192a3cb1557309915d532edca6063ed744e994f23969b073b311",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_null_stype4_r04.csv",
+    "bytes": 14216413,
+    "sha256": "ec402f5cc0e11181b4824f51022dc953aff7c19d38c090f9a52abd11811b64d1",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_sel4.csv",
+    "bytes": 13810824,
+    "sha256": "7ac833d3f794bcd1c55d0f170d40edbf7897620d461d077e8d95eab2b9ab30e9",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_stype1.csv",
+    "bytes": 13593541,
+    "sha256": "82e3bb5e91137a7527cbafebb31d46cc2525bbeadb2af7d346da4b84f200dca1",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "features/v2/ablation/r10_stype4.csv",
+    "bytes": 14216413,
+    "sha256": "d7d7fce67f02106da7794a891b38d6a30ad9f1a823df61a7b60c8fac257a598d",
+    "reason": "Regenerable R10 null/ablation feature tables; source, results and verified snapshot retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/analysis_manifest.json",
+    "bytes": 860,
+    "sha256": "700f239a023228d58b9679784e868bfe46e126ef219cb1f80d7af9f90a6d9c4d",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/feature_dictionary.csv",
+    "bytes": 23247,
+    "sha256": "2da153b34e60501268353b914be255d2390971031b6bda52c82862b27e8c6b93",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/permutation_groups.json",
+    "bytes": 3268,
+    "sha256": "c81cb2914dfa78f844d9616c1c1d536d96b0123c2c14c592ed24a49fb173684a",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/admin/context_feature_shift.csv",
+    "bytes": 63914,
+    "sha256": "a048b1268d0f08d6ec0aba6b9e0b40525eac5cc2cbc51824620e1d6e66ecd485",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/admin/observed_associations.png",
+    "bytes": 339077,
+    "sha256": "f9f1963b393f395eadee0e0f17cda8128a90349d98ee8300b109793451498eca",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/admin/observed_binned_associations.csv",
+    "bytes": 129718,
+    "sha256": "5898b7a94cbe4ebc5f65893089e4f96fe9d8c015a4f204fbf025af748bdf1532",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/admin/oof_units.csv",
+    "bytes": 7267773,
+    "sha256": "a43dc7bf5eea0fdd3803bf09a6dc093e88d4738f663cfde3617815ad44c36cb5",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/admin/regional_metrics.csv",
+    "bytes": 212897,
+    "sha256": "c4d06815c87fc043b196cd00f64a338963b556a779ea1ba38db00d1af80363bb",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/admin/screening_diagnostics.png",
+    "bytes": 149964,
+    "sha256": "511f532ed6d0f9864a9b9e26980c4e87d53556f156d27aa9257f026d305a34e9",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/maps/admin_level_statistics.csv",
+    "bytes": 252,
+    "sha256": "bf4838e8b6545fca73983efcc91a0fa07b62e5f1cf71bb59d8b10ba0e7e1cc5e",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/maps/admin_oof_all25939.cpg",
+    "bytes": 5,
+    "sha256": "3ad3031f5503a4404af825262ee8232cc04d4ea6683d42c5dd0a2f2a27ac9824",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/maps/admin_oof_all25939.csv",
+    "bytes": 8169469,
+    "sha256": "9c3b9c10c366724ec3a535e5a6fdbcc845473b4e39b7eea0020da587c0c2791a",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/maps/admin_oof_all25939.dbf",
+    "bytes": 2516532,
+    "sha256": "b79e2a36d0192a33304bd03a567b11e478a807dfeec95267295b0b039bb76ced",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/maps/admin_oof_all25939.prj",
+    "bytes": 354,
+    "sha256": "a38c73380f15d7c2023d3990f9b22582e1fc646f84e0a972fd9cc2b66d479dc9",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/maps/admin_oof_all25939.shp",
+    "bytes": 10163692,
+    "sha256": "9b7433bc30be8696f4b090bb8d479e4d6f7ad0e3a0f116db4a236349f8393167",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/maps/admin_oof_all25939.shx",
+    "bytes": 207612,
+    "sha256": "eb64db62d7f39b435d5b4798094f77d9ea994b4cf43d8931b63016b343e03347",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/maps/admin_oof_level.tif",
+    "bytes": 296517,
+    "sha256": "4dca9bdb730151a8ba8997f4877b82e3acb21e6492289f4aad1286afa51cd54d",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/maps/admin_oof_preview.pdf",
+    "bytes": 52332,
+    "sha256": "6dc1f15d4306774163fa52981452ef7d625b4e70defe0c6496fe638c20d4bc99",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/maps/admin_oof_preview.png",
+    "bytes": 290434,
+    "sha256": "08f19c9fa14061d05d6c0f17845410632a7904f254adad539cf4fe01bc096989",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/maps/admin_oof_score.tif",
+    "bytes": 1336881,
+    "sha256": "fdcf4a8070389b83bfb601ca83e8c11d9d21fefcbd62ff7e4e5cb3b17f437d8b",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/maps/map_manifest.json",
+    "bytes": 2329,
+    "sha256": "1c8fdd87962a5ddf55bc796615880f8f245144ab2bb1698a73ab147bf5714ef7",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/maps/spatial_level_statistics.csv",
+    "bytes": 254,
+    "sha256": "ee3177f0544f55297e4b5ef18768c3c76f5a31517e96db89be90251df0e540ee",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/maps/spatial_oof_all25939.cpg",
+    "bytes": 5,
+    "sha256": "3ad3031f5503a4404af825262ee8232cc04d4ea6683d42c5dd0a2f2a27ac9824",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/maps/spatial_oof_all25939.csv",
+    "bytes": 8191990,
+    "sha256": "c6fa2e3b85a6e7b086892b5e3882b762e63f88db81a1c852b2c7daadc8aa54ba",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/maps/spatial_oof_all25939.dbf",
+    "bytes": 2516532,
+    "sha256": "0f1b98ae86c4dfd66a110b1b31284ba2e6f7e35b3a1d29e5c49bcc4e33917a7b",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/maps/spatial_oof_all25939.prj",
+    "bytes": 354,
+    "sha256": "a38c73380f15d7c2023d3990f9b22582e1fc646f84e0a972fd9cc2b66d479dc9",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/maps/spatial_oof_all25939.shp",
+    "bytes": 10163692,
+    "sha256": "9b7433bc30be8696f4b090bb8d479e4d6f7ad0e3a0f116db4a236349f8393167",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/maps/spatial_oof_all25939.shx",
+    "bytes": 207612,
+    "sha256": "eb64db62d7f39b435d5b4798094f77d9ea994b4cf43d8931b63016b343e03347",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/maps/spatial_oof_level.tif",
+    "bytes": 293749,
+    "sha256": "36630fc5c6db94c269428b18849c1224789d1d843aa5726a6cfc29d0242fb365",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/maps/spatial_oof_preview.pdf",
+    "bytes": 52525,
+    "sha256": "13dbdd20db148adf5e6208724dbb36a1743438267fc63cd021c794b704b73cd5",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/maps/spatial_oof_preview.png",
+    "bytes": 288924,
+    "sha256": "807570ec58fc48252abf01a6a9b4e70912ae840186d2033c82a230f271562253",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/maps/spatial_oof_score.tif",
+    "bytes": 1333183,
+    "sha256": "5c5db2cc71d35c7e84598baa0014173ddaa599a03178b7db8545498c4b104836",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/spatial/context_feature_shift.csv",
+    "bytes": 63169,
+    "sha256": "02764980b60261e98fadd1c8dbe40ddb7c358bfa554222634c361b9142271e69",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/spatial/observed_associations.png",
+    "bytes": 335527,
+    "sha256": "9a4a548efd80c08d591fca8b5d53ed931c35d05cbe37e74fbf482105ada9a267",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/spatial/observed_binned_associations.csv",
+    "bytes": 129745,
+    "sha256": "07506a5dc2cad62bb2836c45370d6063755ea47b70f1bb99a6a2e995ede5e577",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/spatial/oof_units.csv",
+    "bytes": 7269820,
+    "sha256": "4bb858e0d6fcb159a18509fb1c04a96cea13fb5cea91beb5ee51ca5d549b315a",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/spatial/regional_metrics.csv",
+    "bytes": 213315,
+    "sha256": "4f94b9406cb35882bcfec949076d1ff5007fed3e1f41eb1ff1887e1a331a8b00",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020/spatial/screening_diagnostics.png",
+    "bytes": 149279,
+    "sha256": "a2474e67fd6abbe01adf4f73f4215e1ac9e87e1c7969b3eb2e704077b88a5fc1",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_v2/analysis_manifest.json",
+    "bytes": 1140,
+    "sha256": "13363a96a7ed3226082648c528bc4fcc9402bb8a1966288a2ba63dc8224a51e0",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_v2/feature_dictionary.csv",
+    "bytes": 23247,
+    "sha256": "2da153b34e60501268353b914be255d2390971031b6bda52c82862b27e8c6b93",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_v2/permutation_groups.json",
+    "bytes": 3268,
+    "sha256": "c81cb2914dfa78f844d9616c1c1d536d96b0123c2c14c592ed24a49fb173684a",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_v2/admin/context_feature_shift.csv",
+    "bytes": 141733,
+    "sha256": "d869573b86168b0284402811b17266a2bd57d4d735ca008ea47681c5c87e4926",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_v2/admin/observed_associations.png",
+    "bytes": 339077,
+    "sha256": "f9f1963b393f395eadee0e0f17cda8128a90349d98ee8300b109793451498eca",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_v2/admin/observed_binned_associations.csv",
+    "bytes": 129718,
+    "sha256": "5898b7a94cbe4ebc5f65893089e4f96fe9d8c015a4f204fbf025af748bdf1532",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_v2/admin/oof_units.csv",
+    "bytes": 7267773,
+    "sha256": "a43dc7bf5eea0fdd3803bf09a6dc093e88d4738f663cfde3617815ad44c36cb5",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_v2/admin/regional_metrics.csv",
+    "bytes": 212897,
+    "sha256": "c4d06815c87fc043b196cd00f64a338963b556a779ea1ba38db00d1af80363bb",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_v2/admin/screening_diagnostics.png",
+    "bytes": 149964,
+    "sha256": "511f532ed6d0f9864a9b9e26980c4e87d53556f156d27aa9257f026d305a34e9",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_v2/admin/subgroup_metrics.csv",
+    "bytes": 3277,
+    "sha256": "5b770a974df81eeec3227af6b697568a9e1928a4956da63a34d7a5011855bc34",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_v2/spatial/context_feature_shift.csv",
+    "bytes": 140430,
+    "sha256": "e45e980ea64900520f74b4eac79fc37c5f08206c95a7577c48d972f765cba342",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_v2/spatial/observed_associations.png",
+    "bytes": 335527,
+    "sha256": "9a4a548efd80c08d591fca8b5d53ed931c35d05cbe37e74fbf482105ada9a267",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_v2/spatial/observed_binned_associations.csv",
+    "bytes": 129745,
+    "sha256": "07506a5dc2cad62bb2836c45370d6063755ea47b70f1bb99a6a2e995ede5e577",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_v2/spatial/oof_units.csv",
+    "bytes": 7269820,
+    "sha256": "4bb858e0d6fcb159a18509fb1c04a96cea13fb5cea91beb5ee51ca5d549b315a",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_v2/spatial/regional_metrics.csv",
+    "bytes": 213315,
+    "sha256": "4f94b9406cb35882bcfec949076d1ff5007fed3e1f41eb1ff1887e1a331a8b00",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_v2/spatial/screening_diagnostics.png",
+    "bytes": 149279,
+    "sha256": "a2474e67fd6abbe01adf4f73f4215e1ac9e87e1c7969b3eb2e704077b88a5fc1",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_v2/spatial/subgroup_metrics.csv",
+    "bytes": 3255,
+    "sha256": "82e2eeb93835e7bfbe383d92f8cdcee143a8dac53ee8e5b06302a2382e289019",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_final/analysis_manifest.json",
+    "bytes": 1140,
+    "sha256": "d6a7052afbe684ea3c030023ab81f5ad713f99dbce422da45985c9a666f02ef8",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_final/feature_dictionary.csv",
+    "bytes": 23308,
+    "sha256": "d14cde3fad7854ad7755f2e320aa75d7d4144cd2445e15483ffff1e2225174c8",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_final/permutation_groups.json",
+    "bytes": 3268,
+    "sha256": "c81cb2914dfa78f844d9616c1c1d536d96b0123c2c14c592ed24a49fb173684a",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_final/admin/context_feature_shift.csv",
+    "bytes": 141733,
+    "sha256": "d869573b86168b0284402811b17266a2bd57d4d735ca008ea47681c5c87e4926",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_final/admin/observed_associations.png",
+    "bytes": 339077,
+    "sha256": "f9f1963b393f395eadee0e0f17cda8128a90349d98ee8300b109793451498eca",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_final/admin/observed_binned_associations.csv",
+    "bytes": 129718,
+    "sha256": "5898b7a94cbe4ebc5f65893089e4f96fe9d8c015a4f204fbf025af748bdf1532",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_final/admin/oof_units.csv",
+    "bytes": 7369856,
+    "sha256": "17bc916af330c7c8164413e145db4ea120792e72541a32802822c14fe2ce2c21",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_final/admin/regional_metrics.csv",
+    "bytes": 212897,
+    "sha256": "c4d06815c87fc043b196cd00f64a338963b556a779ea1ba38db00d1af80363bb",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_final/admin/screening_diagnostics.png",
+    "bytes": 149964,
+    "sha256": "511f532ed6d0f9864a9b9e26980c4e87d53556f156d27aa9257f026d305a34e9",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_final/admin/subgroup_metrics.csv",
+    "bytes": 3277,
+    "sha256": "5b770a974df81eeec3227af6b697568a9e1928a4956da63a34d7a5011855bc34",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_final/spatial/context_feature_shift.csv",
+    "bytes": 140430,
+    "sha256": "e45e980ea64900520f74b4eac79fc37c5f08206c95a7577c48d972f765cba342",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_final/spatial/observed_associations.png",
+    "bytes": 335527,
+    "sha256": "9a4a548efd80c08d591fca8b5d53ed931c35d05cbe37e74fbf482105ada9a267",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_final/spatial/observed_binned_associations.csv",
+    "bytes": 129745,
+    "sha256": "07506a5dc2cad62bb2836c45370d6063755ea47b70f1bb99a6a2e995ede5e577",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_final/spatial/oof_units.csv",
+    "bytes": 7371903,
+    "sha256": "83638a5154435995c34451f4b63664bc22456d80c4a7e6e9755d8f975000f199",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_final/spatial/regional_metrics.csv",
+    "bytes": 213315,
+    "sha256": "4f94b9406cb35882bcfec949076d1ff5007fed3e1f41eb1ff1887e1a331a8b00",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_final/spatial/screening_diagnostics.png",
+    "bytes": 149279,
+    "sha256": "a2474e67fd6abbe01adf4f73f4215e1ac9e87e1c7969b3eb2e704077b88a5fc1",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_recoverable",
+    "path": "results/pixel_tabpfn_diagnostics_v1/initial_20261020_final/spatial/subgroup_metrics.csv",
+    "bytes": 3255,
+    "sha256": "82e2eeb93835e7bfbe383d92f8cdcee143a8dac53ee8e5b06302a2382e289019",
+    "reason": "Superseded local diagnostics draft; initial_release and natural_breaks_20261020 retained"
+  },
+  {
+    "action": "delete_empty_directory",
+    "path": "C:\\Users\\dollars\\code\\subjects\\results\\pixel_bag_tests"
+  },
+  {
+    "action": "delete_empty_directory",
+    "path": "C:\\Users\\dollars\\code\\subjects\\results\\pixel_geo_ablation_tests"
+  },
+  {
+    "action": "delete_empty_directory",
+    "path": "C:\\Users\\dollars\\code\\subjects\\results\\pixel_geo_repr_tests"
+  },
+  {
+    "action": "delete_empty_directory",
+    "path": "C:\\Users\\dollars\\code\\subjects\\results\\pixel_stats_attribution_tests"
+  },
+  {
+    "action": "delete_empty_directory",
+    "path": "C:\\Users\\dollars\\code\\subjects\\results\\pixel_tabpfn_diagnostics_tests"
+  },
+  {
+    "action": "delete_empty_directory",
+    "path": "C:\\Users\\dollars\\code\\subjects\\results\\pixel_tabpfn_suite_tests"
+  },
+  {
+    "action": "delete_empty_directory",
+    "path": "C:\\Users\\dollars\\code\\subjects\\results\\pixel_tabpfn_tests"
+  },
+  {
+    "action": "delete_empty_directory",
+    "path": "C:\\Users\\dollars\\code\\subjects\\results\\representation_tests"
+  }
+]

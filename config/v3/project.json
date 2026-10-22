@@ -1,0 +1,35 @@
+{
+  "active_version": "V3",
+  "stage": "full84_multiscale_features_ready",
+  "ready_for_training": true,
+  "model_input": "features/v3/model_inputs",
+  "v2_snapshot": "archive/v2/pre_v3_snapshot.zip",
+  "station_output": "features/v3/station_matching",
+  "water_output": "features/v3/fold_water",
+  "model_population": 25509,
+  "positive_count": 661,
+  "mapping_population": 25939,
+  "excluded_river_units": 430,
+  "invalidated_v2_inputs": [
+    "inundation_fraction", "max_drawdown_rate", "wet_dry_cycles",
+    "ant_inund_days_3m", "ant_drawdown_3m",
+    "historical_wet_fraction and relative_level_* pixel channels",
+    "water-dependent distribution summaries and wet-weighted terrain interactions"
+  ],
+  "planned_feature_names": {
+    "ant_inund_days_3m": "ant_inund_days_1m",
+    "max_drawdown_rate": "preevent_max_abs_monthly_level_change",
+    "wet_dry_cycles": "preevent_wet_dry_transition_count",
+    "inundation_fraction": "preevent_inundation_fraction"
+  },
+  "water_and_reference_dates_implemented": {
+    "background_start": "2001-01-01",
+    "end": "event/reference month start, exclusive",
+    "negative_reference_dates": "Joint year-month frequencies from outer-training positives only; same draws across arms",
+    "keep_multiple_scales": true
+  },
+  "remaining_temporal_rebuild": [],
+  "missing_water_policy": "Causal hold at most 3 days; remaining background gaps yield missing background features, never zero or backfill",
+  "context_sampling_optimization": "Deferred until corrected V3 baseline; keep budget 4000 and original training-side selection rules",
+  "prohibited": "Do not relabel V2 features, predictions, explanations or maps as corrected V3 results."
+}

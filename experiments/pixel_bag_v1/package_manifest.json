@@ -1,0 +1,26 @@
+{
+  "version": "pixel_bag_followup_v1.1",
+  "prepared_schema": "pixel_bag_v1.0",
+  "files": {
+    "experiments/pixel_bag_v1/analyze_full_return.py": "7393e8a7f5aa43b6977983507375ba6fa1b988341587469d82e42facc090dc92",
+    "experiments/pixel_bag_v1/followup.py": "775a7c9f051a40902a5b4598e554eb1a712cf4f44c0a58bc84dc2a26835eeba1",
+    "experiments/pixel_bag_v1/followup_summary.py": "827c8ba0ebd190241fae683d98257fe46280217a97322c036adcda230cb05fa3",
+    "experiments/pixel_bag_v1/FOLLOWUP_V11.md": "3cb0d5c594f89c25764e4432906a0d5ef2a97b79fe850a674d638581e0b1a45b",
+    "experiments/pixel_bag_v1/FULL_CV_REVIEW_20261015.md": "5687c40118f4b18a80ed9fbaf0b88cacffaa1648febf69cabdc92582269da39e",
+    "experiments/pixel_bag_v1/LOCAL_VALIDATION.md": "72323138b0125906896d254183391859d6c417a67f96f937c9bc062df25d47f3",
+    "experiments/pixel_bag_v1/make_patch.py": "f201cd8876a1bbb04c2b20ac3ffb07f1becb5774ffcfad13530f1a19fca97f81",
+    "experiments/pixel_bag_v1/README.md": "be604d40c09ec3cc45b4abadef99b813677e8cff30107088062c08c99346cffc",
+    "experiments/pixel_bag_v1/review_return.py": "0350350b340d6589213c5c2839a5bc5133d29ebbb297c30c238d3984747f7233",
+    "experiments/pixel_bag_v1/run.py": "29fbc200c13e3b95eace45d36aacfd718f881f0f57eed4a8a12f591a8ac90418",
+    "experiments/pixel_bag_v1/run_v1_frozen.py": "14f622a6955ffe36ebd86e0f57e152df9354e67f7800bc2a902a810fa700a31b",
+    "experiments/pixel_bag_v1/server_observations.json": "24bdd66d1efc94e6ae327e4436d30c73a4f1c45e6a66792af066ae6cc3b872ae",
+    "experiments/pixel_bag_v1/SMOKE_REVIEW_20261015.md": "2d9133e15cc51e6a6b0d017a083f2000c736fcb2ea1f4fe3a574ad6b08792ae0",
+    "experiments/pixel_bag_v1/test_pipeline.py": "9ee5532299d908e4c65c1d457e8fcd4ca0dd8d2313d00b0eeea485d976f72e75",
+    "experiments/pixel_bag_v1/verify_sources.py": "558537602b6febb428ce2ad08895c5d7f4a77a18c6fea27e6cf4fc7335789066",
+    "experiments/pixel_bag_v1/evidence/pretrain_check_user_report.txt": "1c4df868d7511f9ee538116838dcec097138a6a9c3c6cb27463be7b137c94c19",
+    "experiments/pixel_bag_v1/evidence/server_environment_user_report.txt": "1afc8742c0ede1155b347854d101bc51cd27b6ac2cddf4f448a23a6b87e35824",
+    "src/config.py": "f99a90013d7cbeb659c720f4b8a32c47a0dcdc0349801fb72f6e773b85d38785",
+    "src/dataset.py": "40592308a0ceaef6452ced901e90c97ea8e80444a848f1f41fb5c7c9f894cecc",
+    "tills/shp_io.py": "ab9229f599d07c61b74cb3c0eb42c7a1f12d5cbbab7ad4ef96a7941b5a921ed8"
+  }
+}

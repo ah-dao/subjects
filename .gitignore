@@ -28,8 +28,58 @@ results/
 # 压缩包
 *.zip
 
+# 本地地质叠置验证的独立依赖（不属于服务器补丁）
+.geo_deps/
+
 # 旧版本遗留文件（已归档，不入库）
 archive/
 
-# 入库范围提示（不需要写规则）：
-#   src/ tills/ tools/ docs/ deliverables/ + 根目录脚本 = 代码、文档、交付表
+# V2 archive navigation, provenance and historical documentation stay reviewable.
+# Large snapshots, returned data and installers remain excluded.
+!archive/
+archive/*
+!archive/v2/
+archive/v2/*
+!archive/v2/README.md
+!archive/v2/docs/
+!archive/v2/root_docs/
+!archive/v2/snapshot_manifest.json
+!archive/v2/organization_journal.json
+
+# Minimal V3 training payload. Keep frozen manifests and all their file entries.
+!data/
+data/*
+!data/v3/
+data/v3/*
+!data/v3/context_ids.json
+!features/
+features/*
+!features/v3/
+features/v3/*
+!features/v3/model_inputs/
+!features/v3/control_reference_s42/
+!features/v3/explain_reference_s42/
+
+# Generated output, packages, dependencies and local credentials.
+deliverables/
+tools/wheels/
+wheels/
+logs/
+*.tgz
+*.tar
+*.gz
+*.whl
+*.ckpt
+*.tabpfn_fit
+.venv*/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+/results
+/models
+
+# Keep historical navigation, not duplicate audit data or old imagery.
+archive/v2/docs/archive/resolution_validation/*.csv
+archive/v2/docs/archive/resolution_validation/*.png

@@ -1,0 +1,22 @@
+{
+  "version": "pixel_tabpfn_v1",
+  "files": {
+    "experiments/pixel_tabpfn_v1/bag_core.py": "23d5593219d36c00f45030bd54d7573678e6e3aa187243bfe1c35b4027d8205f",
+    "experiments/pixel_tabpfn_v1/INNOVATION.md": "050828d133f37d70445f63e283dd2d0a0af334af71fd5e94df461bc5dd776dc2",
+    "experiments/pixel_tabpfn_v1/JSON_FIX.md": "3440250edf0ab600b9ae98bc2466c334ca50947e9efbb240f0858f140dbc01c7",
+    "experiments/pixel_tabpfn_v1/LOCAL_VALIDATION.md": "219382c08d2448c09d81743e402471fd0763c801a306fe1ea6321213fd9c1297",
+    "experiments/pixel_tabpfn_v1/package.py": "dcfa1971b360e27e1e549ed4de094f77c9b971e2b9473cbb429aa8a7e5b3010a",
+    "experiments/pixel_tabpfn_v1/README.md": "655d8d70b2f5d81c982511dd8cd3e42bdfe7ef2290fcfb850b2687c46ca3bec1",
+    "experiments/pixel_tabpfn_v1/reports.py": "8a5480ad01511f4668a1130f0239fe94432ac3c5bf4b05a105ba6a4119d0cfff",
+    "experiments/pixel_tabpfn_v1/review_return.py": "63088c81fd2a0cdf5eeaaf27701774d783f692215e722cdf769a34f722776250",
+    "experiments/pixel_tabpfn_v1/run.py": "03d907c6111b5ac5611155dd8caafa58c9cc43b8732e4d08a37fd162f7de33ff",
+    "experiments/pixel_tabpfn_v1/test_pipeline.py": "8b58e00c0f49b93ca8c09eaf6797bb5d7d8cca6449d0fe35ee0f16747a18a68c",
+    "src/dataset.py": "40592308a0ceaef6452ced901e90c97ea8e80444a848f1f41fb5c7c9f894cecc",
+    "src/config.py": "f99a90013d7cbeb659c720f4b8a32c47a0dcdc0349801fb72f6e773b85d38785"
+  },
+  "historical_checkpoint": {
+    "name": "tabpfn-v2-classifier-finetuned-zk73skhh.ckpt",
+    "bytes": 29009539,
+    "sha256": "cf8c519c01eaf1613ee91239006d57b1c806ff5f23ac1aeb1315ba1015210e49"
+  }
+}

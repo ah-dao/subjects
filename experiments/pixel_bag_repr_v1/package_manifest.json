@@ -1,0 +1,13 @@
+{
+  "version": "pixel_bag_representation_v1.0",
+  "files": {
+    "experiments/pixel_bag_repr_v1/followup_summary.py": "d631d2ac33947af2653891de25975c5d7ffe4dddb807a3e150c5b5bd7673878e",
+    "experiments/pixel_bag_repr_v1/LOCAL_VALIDATION.md": "7568fa74e471e90f4e011b3f22afa2b2a6c31508a105300979315b61e7e8731f",
+    "experiments/pixel_bag_repr_v1/package.py": "da8018d60cd16b0cb635062cadc6eb0e5fe15142a272ce9febcd31cf0a11d9ed",
+    "experiments/pixel_bag_repr_v1/README.md": "faca38a76e6e94a507154b715410d604082ba303059ac09e8c153cc59a3532d2",
+    "experiments/pixel_bag_repr_v1/run.py": "2d5577edf61f6f7a1119e0a650ef1e8a0b73582bedfc4b78ca306d03af9b77f4",
+    "experiments/pixel_bag_repr_v1/test_round1.py": "f66edde9fe8965470288c229985375b0e8801a9486cb7843121130f4cca4e447",
+    "src/dataset.py": "40592308a0ceaef6452ced901e90c97ea8e80444a848f1f41fb5c7c9f894cecc",
+    "src/config.py": "f99a90013d7cbeb659c720f4b8a32c47a0dcdc0349801fb72f6e773b85d38785"
+  }
+}
