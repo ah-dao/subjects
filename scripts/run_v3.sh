@@ -12,6 +12,7 @@ case "$task" in
   check) python -m src.v3.train check "$@" ;;
   smoke) python -m src.v3.train smoke "$@" ;;
   train) python -m src.v3.train train "$@" ;;
+  drawdown) python -m src.v3.train_drawdown84 train "$@" ;;
   controls)
     python -m src.v3.controls check "$@"
     python -m src.v3.controls train "$@"
@@ -30,7 +31,7 @@ case "$task" in
     python -m src.v3.explain84_canonical train "$@"
     ;;
   *)
-    echo 'Usage: bash scripts/run_v3.sh {verify|check|smoke|train|controls|explain|canonical} [module options]'
+    echo 'Usage: bash scripts/run_v3.sh {verify|check|smoke|train|drawdown|controls|explain|canonical} [module options]'
     [[ "$task" == help ]] || exit 2
     ;;
 esac

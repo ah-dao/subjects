@@ -3,4 +3,6 @@ src/v3/** -text
 features/v3/** -text
 data/v3/context_ids.json -text
 splits/v3/** -text
+config/v3/drawdown_units.csv -text
+config/v3/drawdown_membership.json -text
 *.sh text eol=lf

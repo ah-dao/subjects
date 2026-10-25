@@ -1,0 +1,45 @@
+{
+  "version": "V3_drawdown_membership_1",
+  "source_inventory": "data/slope_units/消落区/xpdy_2.shp",
+  "original_units": 7539,
+  "current_units": 7531,
+  "excluded_river_units": 430,
+  "excluded_river_positives": 1,
+  "modeled_units": 7101,
+  "modeled_positives": 616,
+  "membership": "Frozen source Id mapped to current unit_id, with merged children mapped to hosts; exact in_xiaoluoqu match",
+  "label": "landslide_count_study > 0; original hp not used",
+  "area": "Whole selected slope polygons, not elevation-clipped drawdown-strip area",
+  "files": {
+    "drawdown_units.csv": "0c523bff417b4693d8ffdc63b936a35f8b24352935f980f760ed06bc276a1561"
+  },
+  "spatial_split_sha256": "d300ccaf2a9ea592d3bf80fb11a2c6086617a58e44cee89c141510624753a742",
+  "fold_counts": {
+    "0": {
+      "units": 1739,
+      "positives": 95
+    },
+    "1": {
+      "units": 1545,
+      "positives": 152
+    },
+    "2": {
+      "units": 1519,
+      "positives": 163
+    },
+    "3": {
+      "units": 1276,
+      "positives": 161
+    },
+    "4": {
+      "units": 1022,
+      "positives": 45
+    }
+  },
+  "source_sha256": {
+    "data/slope_units/消落区/xpdy_2.shp": "1931bc1dcb07b095aa8ac45b32dc33273cbf0c6f3ea37d7debe06c5a49d9d396",
+    "data/slope_units/消落区/xpdy_2.dbf": "b0e4794d8d271da2d7d6a2e3ab352b9ee9cba9aa54f976d232ecaafdacbb8e15",
+    "features/v2/unit_id_map_v2.csv": "697bcdee60fc9b0ce93aafb5b502a19a057f0214c7dc03021e0a631e2bb010aa",
+    "data/slope_units/slope_units_final_count.csv": "bf8e25363f70f7fada3f4b4af0344b39c29f28bd9c125d63ffd571232ef0ce9e"
+  }
+}
