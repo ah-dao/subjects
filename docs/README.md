@@ -6,6 +6,7 @@
 |---|---|
 |Git同步、服务器部署、SSH与统一运行入口|[Git与SSH流程](V3_GIT_SSH_WORKFLOW.md)|
 |研究任务、版本边界、当前状态|[V3主线](V3_MAINLINE.md)|
+|QGIS五级分区、县域覆盖率与版式导出|[QGIS出图与评价](V3_QGIS_GRADING_AND_EVALUATION.md)|
 |站点纠正与匹配|[站点匹配](V3_STATION_MATCHING.md)|
 |事件前水位与折内参照日期|[水位背景](V3_WATER_BACKGROUND.md)|
 |多时间尺度84维输入与五折训练|[实验运行指南](V3_EXPERIMENT_RUNBOOK.md)|

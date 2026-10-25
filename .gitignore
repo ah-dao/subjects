@@ -27,7 +27,8 @@ results/
 
 # 压缩包
 *.zip
-
+# docx 不入库
+*.docx
 # 本地地质叠置验证的独立依赖（不属于服务器补丁）
 .geo_deps/
 

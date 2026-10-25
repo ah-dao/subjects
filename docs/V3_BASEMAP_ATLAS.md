@@ -1,5 +1,7 @@
 # V3正式底图图集
 
+后续正式分级、制图统一使用QGIS，方法见[QGIS五级分区与评价](V3_QGIS_GRADING_AND_EVALUATION.md)。主报告改用高＋极高等级清单覆盖率及面积占比；本页现有图集和命令保留作历史复现，不作为后续正式出图入口。
+
 唯一可用目录为`results/v3_county_borders_atlas_20261021/`。其他多轮出图、诊断绘图与对应结果ZIP已清理，不作为交付入口。该目录的68个文件原样保留，包含16张PNG和16张PDF，以及GIS配套文件、`county_selection.csv`、`map_index.json`、`metadata.json`、`manifest.json`。
 
 ## 图面口径
