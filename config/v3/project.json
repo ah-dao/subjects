@@ -1,6 +1,7 @@
 {
   "active_version": "V3",
-  "stage": "full84_multiscale_features_ready",
+  "stage": "spatial84_1to3_ensemble8_oof_verified",
+  "active_mainline_config": "config/v3/mainline_1to3.json",
   "ready_for_training": true,
   "model_input": "features/v3/model_inputs",
   "v2_snapshot": "archive/v2/pre_v3_snapshot.zip",
@@ -8,7 +9,8 @@
   "water_output": "features/v3/fold_water",
   "model_population": 25509,
   "positive_count": 661,
-  "mapping_population": 25939,
+  "mapping_population": 25509,
+  "historical_mapping_population_including_river": 25939,
   "excluded_river_units": 430,
   "invalidated_v2_inputs": [
     "inundation_fraction", "max_drawdown_rate", "wet_dry_cycles",
@@ -30,6 +32,6 @@
   },
   "remaining_temporal_rebuild": [],
   "missing_water_policy": "Causal hold at most 3 days; remaining background gaps yield missing background features, never zero or backfill",
-  "context_sampling_optimization": "Deferred until corrected V3 baseline; keep budget 4000 and original training-side selection rules",
+  "context_sampling_optimization": "8 estimators, retain all training positives and sample background at 1:3 within original frozen 4000 context; original contexts and feature operators unchanged",
   "prohibited": "Do not relabel V2 features, predictions, explanations or maps as corrected V3 results."
 }

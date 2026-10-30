@@ -8,6 +8,11 @@ export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:T
 task="${1:-help}"
 if [[ $# -gt 0 ]]; then shift; fi
 case "$task" in
+  mainline)
+    python -m src.v3.balance_experiment --scope barrier --folds 0 1 2 3 4 \
+      --modes subsample --members 8 --ratios 1:3 \
+      --out results/v3_mainline_barrier84_1to3_s42 "$@"
+    ;;
   verify) python -m src.v3.train verify "$@" ;;
   check) python -m src.v3.train check "$@" ;;
   smoke) python -m src.v3.train smoke "$@" ;;
@@ -31,7 +36,7 @@ case "$task" in
     python -m src.v3.explain84_canonical train "$@"
     ;;
   *)
-    echo 'Usage: bash scripts/run_v3.sh {verify|check|smoke|train|drawdown|controls|explain|canonical} [module options]'
+    echo 'Usage: bash scripts/run_v3.sh {mainline|verify|check|smoke|train|drawdown|controls|explain|canonical} [module options]'
     [[ "$task" == help ]] || exit 2
     ;;
 esac
