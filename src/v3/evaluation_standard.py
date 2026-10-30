@@ -94,9 +94,9 @@ def main():
     ranking, coverage, levels = evaluate(frame, grades)
     args.out.mkdir(parents=True)
     ranking.to_csv(args.out/'ranking.csv', index=False)
-    coverage.to_csv(args.out/'area_at_recall.csv', index=False)
     frame[['unit_id', 'p']].rename(columns={'p': 'score'}).to_csv(args.out/'qgis_scores.csv', index=False)
     if levels is not None:
+        coverage.to_csv(args.out/'area_at_recall.csv', index=False)
         levels.to_csv(args.out/'grade_metrics.csv', index=False)
     (args.out/'README.txt').write_text(
         'Scope: exactly the provided modeled units; report whether partial-fold or complete OOF.\n'
@@ -105,11 +105,11 @@ def main():
         + ('QGIS grades supplied; grade metrics complete.\n' if grades is not None else
            'QGIS grades absent: grade coverage, grade area and BA NOT evaluated.\n'), encoding='utf-8')
     print(ranking.to_string(index=False))
-    print(coverage.to_string(index=False))
     if levels is not None:
+        print(coverage.to_string(index=False))
         print(levels.to_string(index=False))
     else:
-        print('QGIS grades absent; export qgis_scores.csv, classify in QGIS, then rerun with --grades.')
+        print('Ranking only. After complete OOF scoring and QGIS grading, rerun with --grades.')
 
 
 if __name__ == '__main__':
