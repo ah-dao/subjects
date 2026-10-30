@@ -19,6 +19,7 @@
 |历史复现与恢复|[V2归档](../archive/v2/README.md)|
 |服务器镜像选择、依赖重建与校验|[服务器环境重建](V3_SERVER_REBUILD.md)|
 |概率平衡、集成子采样与单折试跑|[平衡实验](V3_BALANCE_EXPERIMENT.md)|
+|AP/AUC、分级覆盖与面积、BA统一口径|[模型评价标准](V3_EVALUATION_STANDARD.md)|
 |目录职责与本地辅助资料归档|[项目结构与归档](V3_PROJECT_STRUCTURE.md)|
 
 正式图集唯一目录为`results/v3_county_borders_atlas_20261021/`。历史返回数值与诊断证据不等于可用出图；旧补丁和ZIP不作为主线入口。服务器完成状态以日志和结果核验为准。
