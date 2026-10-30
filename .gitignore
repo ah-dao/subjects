@@ -35,6 +35,13 @@ results/
 # 旧版本遗留文件（已归档，不入库）
 archive/
 
+tmp/
+
+# Local mapping/reporting workspace; retain files locally, exclude from Git.
+/archive/local_work_*/
+/symbology-style.db
+/symbology-style.db-*
+
 # V2 archive navigation, provenance and historical documentation stay reviewable.
 # Large snapshots, returned data and installers remain excluded.
 !archive/
