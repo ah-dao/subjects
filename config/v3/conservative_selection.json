@@ -1,0 +1,16 @@
+{
+  "version": "V3_conservative_selection_v1",
+  "scope": "barrier",
+  "absolute_spearman_strictly_greater_than": 0.9,
+  "minimum_pairwise_fraction": 0.95,
+  "minimum_pairwise_count": 100,
+  "protected": "All 44 slope-pixel statistics and both availability columns",
+  "candidate_pairs": [
+    {"candidate_drop": "elevation_mean", "preferred_keep": "mean_elevation"},
+    {"candidate_drop": "slope_mean", "preferred_keep": "mean_slope"},
+    {"candidate_drop": "area", "preferred_keep": "log1p_valid_pixels"}
+  ],
+  "selection_population": "Raw finite values in the four outer-training folds; no labels or held-out values",
+  "training": "Same frozen 4000 candidates and 8 native estimator subsets as full84 1:3 seed42",
+  "purpose": "Conservative feature-reduction control, not a replacement for the active full84 mainline"
+}

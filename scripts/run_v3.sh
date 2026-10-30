@@ -8,6 +8,7 @@ export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:T
 task="${1:-help}"
 if [[ $# -gt 0 ]]; then shift; fi
 case "$task" in
+  select) python -m src.v3.conservative_selection train "$@" ;;
   mainline)
     python -m src.v3.balance_experiment --scope barrier --folds 0 1 2 3 4 \
       --modes subsample --members 8 --ratios 1:3 \
@@ -36,7 +37,7 @@ case "$task" in
     python -m src.v3.explain84_canonical train "$@"
     ;;
   *)
-    echo 'Usage: bash scripts/run_v3.sh {mainline|verify|check|smoke|train|drawdown|controls|explain|canonical} [module options]'
+    echo 'Usage: bash scripts/run_v3.sh {mainline|select|verify|check|smoke|train|drawdown|controls|explain|canonical} [module options]'
     [[ "$task" == help ]] || exit 2
     ;;
 esac
