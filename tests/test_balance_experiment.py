@@ -11,6 +11,33 @@ from src.v3 import balance_experiment as exp
 
 
 class BalanceExperimentTests(unittest.TestCase):
+    def test_ratio_rounding_canonicalization_and_bounds(self):
+        y = np.r_[np.ones(550), np.zeros(3450)]
+        self.assertEqual(exp.parse_ratio('6:14'), '3:7')
+        self.assertEqual(exp.ratio_size(y, '1:2'), 1650)
+        self.assertEqual(exp.ratio_size(y, '3:7'), 1833)
+        self.assertEqual(exp.ratio_size(y, '1:5'), 3300)
+        self.assertEqual(exp.ratio_size(np.r_[np.ones(614), np.zeros(3386)], '1:2'), 1842)
+        with self.assertRaises(ValueError):
+            exp.ratio_size(y, '1:7')
+        for value in ('0:2', '1:-1', '1.5:2', '1:2:3'):
+            with self.assertRaises(exp.argparse.ArgumentTypeError):
+                exp.parse_ratio(value)
+
+    def test_ratio_jobs_have_separate_names_and_preserve_members(self):
+        y = np.r_[np.ones(550), np.zeros(3450)]
+        args = SimpleNamespace(modes=['ensemble_control', 'subsample'],
+            ratios=['1:2', '3:7'], subsample=3000)
+        jobs = exp.jobs(args, y)
+        self.assertEqual([j[0] for j in jobs],
+            ['ensemble_control', 'subsample_p1_n2', 'subsample_p3_n7'])
+        for _, mode, size, ratio in jobs[1:]:
+            options = exp.model_options(mode, y, size, 8, 42000)
+            self.assertFalse(options['balance_probabilities'])
+            for rows in options['inference_config']['SUBSAMPLE_SAMPLES']:
+                self.assertEqual(len(rows), size)
+                self.assertEqual(y[rows].sum(), 550)
+
     def test_native_plan_keeps_positives_and_varies_background(self):
         y = np.r_[np.ones(500), np.zeros(3500)]
         plans = exp.subset_plan(y, 3000, 8, 42)
@@ -63,6 +90,18 @@ class BalanceExperimentTests(unittest.TestCase):
             for ids in fit['estimator_context_ids']:
                 self.assertFalse(set(ids) & set(fit['test_ids']))
             self.assertIn('partial', (args.out/'metrics.csv').read_text())
+            args.ratios = ['2:1', '3:2']
+            args.out = root/'ratio_out'
+            with patch.object(exp, 'inputs', return_value=({0: d}, {0: np.arange(20)})):
+                exp.run(args, factory=lambda options: FakeModel())
+                exp.run(args, factory=lambda options: self.fail('Ratio jobs must resume'))
+            for label, size in [('subsample_p2_n1', 15), ('subsample_p3_n2', 17)]:
+                ratio_fit = json.loads((args.out/label/'fold0/fit.json').read_text())
+                for ids in ratio_fit['estimator_context_ids']:
+                    self.assertEqual(len(ids), size)
+                    self.assertFalse(set(ids) & set(ratio_fit['test_ids']))
+                self.assertIn(label, (args.out/'metrics.csv').read_text())
+            args.out = root/'out'
             prediction = args.out/'subsample/fold0/predictions.csv'
             prediction.write_text('tampered')
             with self.assertRaises(ValueError):
