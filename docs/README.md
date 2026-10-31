@@ -8,6 +8,7 @@
 |研究任务、版本边界、当前状态|[V3主线](V3_MAINLINE.md)|
 |主线升级后的消融、因子分析与报告写法|[报告证据衔接](V3_REPORT_EVIDENCE.md)|
 |保留坡内统计、训练侧保守精简对照|[第一轮精简实验](V3_CONSERVATIVE_SELECTION.md)|
+|消落区独立81维、8成员1∶3空间五折|[消落区81维训练](V3_DRAWDOWN81_RUNBOOK.md)|
 |QGIS五级分区、县域覆盖率与版式导出|[QGIS出图与评价](V3_QGIS_GRADING_AND_EVALUATION.md)|
 |站点纠正与匹配|[站点匹配](V3_STATION_MATCHING.md)|
 |事件前水位与折内参照日期|[水位背景](V3_WATER_BACKGROUND.md)|
